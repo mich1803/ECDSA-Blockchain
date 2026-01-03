@@ -1,17 +1,19 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
+
 import time
 
-from .models import Transaction, Block, Signature
-from .utils import canonical_json, sha256_hex, utc_ms, Log
-from .crypto import hash_msg, verify_digest
+from .models import Transaction, Block
+from .utils import canonical_json, sha256_hex, utc_ms, Log, normalize_hex, is_address
+from .crypto import hash_msg, recover_address
 
 
 @dataclass
 class ChainConfig:
     difficulty: int = 4
     max_txs_per_block: int = 50
+    block_reward: int = 1  # optional toy issuance
 
 
 class Blockchain:
@@ -19,23 +21,63 @@ class Blockchain:
         self.cfg = cfg
         self.chain: List[Block] = []
         self.mempool: List[Transaction] = []
-        # Anti-replay / ordering per sender
-        self.last_nonce_by_sender: Dict[str, int] = {}
-        # Optional account balances (simple demo)
-        self.balances: Dict[str, int] = {}  # pubkey -> int
 
-    # ---------------- Genesis ----------------
+        # Ethereum-like state: accounts[address] = {"balance": int, "nonce": int}
+        self.accounts: Dict[str, Dict[str, int]] = {}
+
+        # Shared genesis allocation (the key fix)
+        self.genesis_alloc: Dict[str, int] = {}
+
+    # ---------------- Genesis allocation ----------------
+    def set_genesis_alloc(self, alloc: Dict[str, int]) -> None:
+        """
+        Set shared initial balances.
+        alloc keys are addresses (40 hex chars). Values are ints.
+        """
+        cleaned: Dict[str, int] = {}
+        for k, v in (alloc or {}).items():
+            a = normalize_hex(str(k))
+            if not is_address(a):
+                raise ValueError(f"Invalid address in genesis alloc: {k}")
+            cleaned[a] = int(v)
+        self.genesis_alloc = cleaned
+
+    def reset_state_to_genesis(self) -> None:
+        """
+        Reset accounts state to genesis allocation deterministically:
+        - balances from genesis_alloc
+        - nonce = 0
+        """
+        self.accounts = {}
+        for addr, bal in self.genesis_alloc.items():
+            self.accounts[addr] = {"balance": int(bal), "nonce": 0}
+
+    # ---------------- Accounts ----------------
+    def get_account(self, addr: str) -> Dict[str, int]:
+        a = normalize_hex(addr)
+        if a not in self.accounts:
+            self.accounts[a] = {"balance": 0, "nonce": 0}
+        return self.accounts[a]
+
+    def balance_of(self, addr: str) -> int:
+        return int(self.get_account(addr)["balance"])
+
+    def nonce_of(self, addr: str) -> int:
+        return int(self.get_account(addr)["nonce"])
+
+    # ---------------- Genesis block ----------------
     def create_genesis(self) -> None:
         if self.chain:
             return
         genesis = Block(
             index=0,
-            timestamp_ms=utc_ms(),
+            timestamp_ms=0, #cambiato da utc_ms()
             transactions=[],
             previous_hash="0" * 64,
             difficulty=self.cfg.difficulty,
             nonce=0,
-            block_hash=""
+            proposer="0" * 40,
+            block_hash="",
         )
         genesis.block_hash = self.compute_block_hash(genesis)
         self.chain.append(genesis)
@@ -43,90 +85,94 @@ class Blockchain:
 
     # ---------------- Hashing ----------------
     def compute_block_hash(self, block: Block) -> str:
-        header = block.header_dict()
-        return sha256_hex(canonical_json(header))
+        return sha256_hex(canonical_json(block.header_dict()))
 
     def valid_pow(self, block_hash: str, difficulty: int) -> bool:
         return block_hash.startswith("0" * difficulty)
 
-    # ---------------- TX validation ----------------
+    # ---------------- TX digest + sender recovery ----------------
     def tx_digest(self, tx: Transaction) -> bytes:
         payload = canonical_json(tx.payload_dict())
         return hash_msg(payload)
 
-    def verify_tx_signature(self, tx: Transaction) -> bool:
+    def recover_sender(self, tx: Transaction) -> Tuple[bool, str, str]:
         if tx.signature is None:
-            return False
-        digest = self.tx_digest(tx)
-        return verify_digest(
-            tx.sender_pubkey,
-            digest,
-            tx.signature.r,
-            tx.signature.s
-        )
+            return False, "", "missing signature"
+        try:
+            digest = self.tx_digest(tx)
+            sender = recover_address(digest, tx.signature.v, tx.signature.r, tx.signature.s)
+            return True, sender, "ok"
+        except Exception as e:
+            return False, "", f"signature recovery failed: {e}"
 
-    def check_tx_rules(self, tx: Transaction) -> Tuple[bool, str]:
-        if tx.amount <= 0:
-            return False, "amount must be > 0"
-        if not tx.sender_pubkey or not tx.receiver_pubkey:
-            return False, "missing pubkey"
-        if tx.signature is None:
-            return False, "missing signature"
-        if not self.verify_tx_signature(tx):
-            return False, "invalid ECDSA signature"
+    # ---------------- TX validation ----------------
+    def check_tx_rules(self, tx: Transaction) -> Tuple[bool, str, Optional[str]]:
+        if tx.value <= 0:
+            return False, "value must be > 0", None
 
-        last = self.last_nonce_by_sender.get(tx.sender_pubkey, -1)
-        if tx.nonce <= last:
-            return False, f"replay or out-of-order nonce (got {tx.nonce}, last {last})"
+        to = normalize_hex(tx.to)
+        if not is_address(to):
+            return False, "invalid 'to' address", None
 
-        # Optional balance check (simple account model)
-        sender_bal = self.balances.get(tx.sender_pubkey, 0)
-        if sender_bal < tx.amount:
-            return False, f"insufficient funds (bal={sender_bal}, need={tx.amount})"
+        ok, sender, why = self.recover_sender(tx)
+        if not ok:
+            return False, why, None
 
-        return True, "ok"
+        acc = self.get_account(sender)
 
-    def apply_tx(self, tx: Transaction) -> None:
-        # Update nonce and balances
-        self.last_nonce_by_sender[tx.sender_pubkey] = tx.nonce
-        self.balances[tx.sender_pubkey] = self.balances.get(tx.sender_pubkey, 0) - tx.amount
-        self.balances[tx.receiver_pubkey] = self.balances.get(tx.receiver_pubkey, 0) + tx.amount
+        # Ethereum-like: nonce must match EXACTLY
+        if tx.nonce != int(acc["nonce"]):
+            return False, f"bad nonce (got {tx.nonce}, expected {acc['nonce']})", None
+
+        bal = int(acc["balance"])
+        if bal < tx.value:
+            return False, f"insufficient funds (bal={bal}, need={tx.value})", None
+
+        return True, "ok", sender
+
+    def apply_tx(self, tx: Transaction, sender_addr: str) -> None:
+        sender = normalize_hex(sender_addr)
+        receiver = normalize_hex(tx.to)
+
+        sacc = self.get_account(sender)
+        racc = self.get_account(receiver)
+
+        sacc["balance"] = int(sacc["balance"]) - int(tx.value)
+        racc["balance"] = int(racc["balance"]) + int(tx.value)
+        sacc["nonce"] = int(sacc["nonce"]) + 1
 
     # ---------------- Mempool ----------------
     def add_tx_to_mempool(self, tx: Transaction) -> Tuple[bool, str]:
-        ok, why = self.check_tx_rules(tx)
-        if not ok:
+        ok, why, sender = self.check_tx_rules(tx)
+        if not ok or sender is None:
             return False, why
 
-        # Avoid duplicates by (sender, nonce)
+        # avoid duplicates by (sender, nonce)
         for t in self.mempool:
-            if t.sender_pubkey == tx.sender_pubkey and t.nonce == tx.nonce:
+            ok2, s2, _ = self.recover_sender(t)
+            if ok2 and s2 == sender and t.nonce == tx.nonce:
                 return False, "duplicate tx"
+
         self.mempool.append(tx)
         return True, "accepted"
 
     # ---------------- Blocks ----------------
-    def make_candidate_block(self) -> Block:
+    def make_candidate_block(self, proposer: str) -> Block:
         prev = self.chain[-1]
         txs = self.mempool[: self.cfg.max_txs_per_block]
-        blk = Block(
+        return Block(
             index=prev.index + 1,
             timestamp_ms=utc_ms(),
             transactions=txs,
             previous_hash=prev.block_hash,
             difficulty=self.cfg.difficulty,
             nonce=0,
-            block_hash=""
+            proposer=normalize_hex(proposer),
+            block_hash="",
         )
-        return blk
 
     def mine_block(self, blk: Block, max_tries: int = 5_000_000) -> Tuple[bool, Block, int]:
-        """
-        Light PoW: find nonce so hash starts with 'difficulty' zeros.
-        Returns (success, block, tries)
-        """
         tries = 0
-        start = time.time()
         while tries < max_tries:
             blk.nonce = tries
             h = self.compute_block_hash(blk)
@@ -149,20 +195,23 @@ class Blockchain:
         if self.compute_block_hash(blk) != blk.block_hash:
             return False, "bad block hash"
         if not self.valid_pow(blk.block_hash, blk.difficulty):
-            return False, "invalid PoW (difficulty not satisfied)"
+            return False, "invalid PoW"
 
-        # Validate txs (signature + nonce + balances) in-order
-        # We must simulate application without mutating state if invalid.
-        snapshot_nonce = dict(self.last_nonce_by_sender)
-        snapshot_bal = dict(self.balances)
+        # snapshot accounts (no partial mutation)
+        snapshot_accounts = {k: dict(v) for k, v in self.accounts.items()}
 
         for tx in blk.transactions:
-            ok, why = self.check_tx_rules(tx)
-            if not ok:
-                self.last_nonce_by_sender = snapshot_nonce
-                self.balances = snapshot_bal
+            ok, why, sender = self.check_tx_rules(tx)
+            if not ok or sender is None:
+                self.accounts = snapshot_accounts
                 return False, f"invalid tx in block: {why}"
-            self.apply_tx(tx)
+            self.apply_tx(tx, sender)
+
+        # optional issuance
+        if self.cfg.block_reward > 0:
+            prop = normalize_hex(blk.proposer)
+            if is_address(prop):
+                self.get_account(prop)["balance"] = int(self.get_account(prop)["balance"]) + int(self.cfg.block_reward)
 
         return True, "ok"
 
@@ -171,44 +220,46 @@ class Blockchain:
         if not ok:
             return False, why
 
-        # Remove included txs from mempool
-        included = {(t.sender_pubkey, t.nonce) for t in blk.transactions}
-        self.mempool = [t for t in self.mempool if (t.sender_pubkey, t.nonce) not in included]
+        # remove included txs
+        included = set()
+        for t in blk.transactions:
+            ok_s, sender, _ = self.recover_sender(t)
+            if ok_s:
+                included.add((sender, t.nonce, t.timestamp_ms))
+
+        new_mempool = []
+        for t in self.mempool:
+            ok_s, sender, _ = self.recover_sender(t)
+            key = (sender, t.nonce, t.timestamp_ms) if ok_s else ("", t.nonce, t.timestamp_ms)
+            if key not in included:
+                new_mempool.append(t)
+        self.mempool = new_mempool
 
         self.chain.append(blk)
         return True, "block appended"
 
-    # ---------------- Sync helpers ----------------
+    # ---------------- State export ----------------
     def chain_as_dict(self) -> Dict[str, Any]:
         return {
+            "genesis_alloc": self.genesis_alloc,
             "chain": [b.to_dict() for b in self.chain],
             "mempool": [t.to_dict() for t in self.mempool],
-            "balances": self.balances,
-            "last_nonce_by_sender": self.last_nonce_by_sender
+            "accounts": self.accounts,
         }
 
+    # ---------------- Sync helpers ----------------
     def replace_chain_if_better(self, new_chain: List[Block]) -> Tuple[bool, str]:
         """
-        Naive "longest chain wins".
-        For a LAN demo this is enough.
+        Longest chain wins, but with deterministic genesis state.
         """
         if len(new_chain) <= len(self.chain):
             return False, "not longer"
 
-        # Validate from genesis
         tmp = Blockchain(self.cfg)
+        tmp.set_genesis_alloc(self.genesis_alloc)
+        tmp.reset_state_to_genesis()
         tmp.create_genesis()
 
-        # For fairness: seed initial balances from our current genesis state
-        tmp.balances = dict(self.balances)
-        tmp.last_nonce_by_sender = dict(self.last_nonce_by_sender)
-        # But this would already include effects; simplest: reset balances & nonces.
-        # For a clean demo, we keep balances from a known "faucet" initialization (see node startup).
-        # We'll do the strict approach: reset, and require a shared initial faucet state.
-        tmp.balances = {}
-        tmp.last_nonce_by_sender = {}
-
-        # skip genesis index 0, assume it's compatible
         for blk in new_chain[1:]:
             ok, why = tmp.add_block(blk)
             if not ok:
@@ -216,6 +267,5 @@ class Blockchain:
 
         self.chain = tmp.chain
         self.mempool = tmp.mempool
-        self.balances = tmp.balances
-        self.last_nonce_by_sender = tmp.last_nonce_by_sender
+        self.accounts = tmp.accounts
         return True, "chain replaced"

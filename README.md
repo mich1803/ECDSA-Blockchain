@@ -47,17 +47,18 @@ Each node knows its peers via --peers.
 
 Node A (miner) on PC1:
 
-    python run_node.py --port 5001 --wallet walletA.json --faucet --faucet-amount 100 --peers http://PC2_IP:5002,http://PC3_IP:5003
+    python -m run_node --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://PC_1_ID:5002,http://PC_1_ID:5003" --block-reward 0
 
 Node B (client) on PC2
 
 Give B some initial coins too (for easy demo):
 
-    python run_node.py --port 5002 --wallet walletB.json --faucet --faucet-amount 100 --peers http://PC1_IP:5001,http://PC3_IP:5003
+    python -m run_node --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://PC_2_ID:5001,http://PC_2_ID:5003" --block-reward 0
 
 Node C (validator) on PC3:
 
-    python run_node.py --port 5003 --wallet walletC.json --peers http://PC1_IP:5001,http://PC2_IP:5002
+    python -m run_node --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://PC_3_ID:5002,http://PC_3_ID:5001" --block-reward 0
+
 
 If you are testing on ONE machine, use localhost peers:
 - Node A peers: http://127.0.0.1:5002,http://127.0.0.1:5003

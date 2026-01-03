@@ -1,16 +1,3 @@
-"""
-Demo scenario for 3 nodes in LAN or localhost:
-
-1) Query public keys from nodes
-2) Create a tx from node B to node A (using node B local signer endpoint)
-3) Mine on node A
-4) Show chain height on all nodes
-
-Assumptions:
-- Nodes are already running
-- Node B has faucet coins or receives them first
-"""
-
 import argparse
 import requests
 from minichain.utils import Log
@@ -44,22 +31,20 @@ def main():
     idb = get_identity(B)
     idc = get_identity(C)
 
-    Log.info(f"A pub={ida['public_key_hex']}")
-    Log.info(f"B pub={idb['public_key_hex']}")
-    Log.info(f"C pub={idc['public_key_hex']}")
+    Log.info(f"A addr={ida['address']}")
+    Log.info(f"B addr={idb['address']}")
+    Log.info(f"C addr={idc['address']}")
 
-    # B -> A transaction
     Log.info("Creating TX from B -> A")
     r = requests.post(B + "/local/make_tx", json={
-        "receiver_pubkey": ida["public_key_hex"],
-        "amount": args.amount
+        "to": ida["address"],
+        "value": args.amount
     }, timeout=5)
     print(r.status_code, r.text)
     if r.status_code != 200:
         Log.warn("TX creation failed. Ensure B has enough balance (use --faucet on nodeB).")
         return
 
-    # Mine on A
     Log.info("Mining on node A")
     r = requests.post(A + "/mine", json={}, timeout=30)
     print(r.status_code, r.text)
@@ -67,7 +52,6 @@ def main():
         Log.warn("Mining failed (mempool empty or difficulty too high).")
         return
 
-    # Check heights
     ha, hb, hc = get_height(A), get_height(B), get_height(C)
     Log.ok(f"Heights: A={ha} B={hb} C={hc}")
     Log.info("If heights differ, call /sync on the lagging node(s).")

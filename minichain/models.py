@@ -1,38 +1,47 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from typing import Dict, Any, Optional, List
 
-from .utils import canonical_json
+from .utils import normalize_hex
 
 
 @dataclass
 class Signature:
-    r: str  # hex (32 bytes)
-    s: str  # hex (32 bytes)
+    """
+    Ethereum-like: (v, r, s) where v is recovery id (0..3 in this toy).
+    r, s are 32-byte hex strings.
+    """
+    v: int
+    r: str
+    s: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"r": self.r, "s": self.s}
+        return {"v": int(self.v), "r": self.r, "s": self.s}
 
 
 @dataclass
 class Transaction:
-    sender_pubkey: str
-    receiver_pubkey: str
-    amount: int
+    """
+    Ethereum-like transaction (simplified, no fees/gas):
+    - sender is NOT included (recovered from signature)
+    """
+    to: str               # 20-byte address hex (40 chars, no 0x)
+    value: int
     nonce: int
     timestamp_ms: int
+    data: str = ""        # optional hex payload (no 0x)
     signature: Optional[Signature] = None
 
     def payload_dict(self) -> Dict[str, Any]:
         """
-        What gets signed (must be deterministic and exclude signature).
+        Deterministic payload that gets signed (exclude signature).
         """
         return {
-            "sender_pubkey": self.sender_pubkey,
-            "receiver_pubkey": self.receiver_pubkey,
-            "amount": self.amount,
-            "nonce": self.nonce,
-            "timestamp_ms": self.timestamp_ms,
+            "to": normalize_hex(self.to),
+            "value": int(self.value),
+            "nonce": int(self.nonce),
+            "timestamp_ms": int(self.timestamp_ms),
+            "data": normalize_hex(self.data) if self.data else "",
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -44,15 +53,16 @@ class Transaction:
     def from_dict(d: Dict[str, Any]) -> "Transaction":
         sig = d.get("signature")
         signature = None
-        if isinstance(sig, dict) and "r" in sig and "s" in sig:
-            signature = Signature(r=sig["r"], s=sig["s"])
+        if isinstance(sig, dict) and "v" in sig and "r" in sig and "s" in sig:
+            signature = Signature(v=int(sig["v"]), r=sig["r"], s=sig["s"])
+
         return Transaction(
-            sender_pubkey=d["sender_pubkey"],
-            receiver_pubkey=d["receiver_pubkey"],
-            amount=int(d["amount"]),
+            to=d["to"],
+            value=int(d["value"]),
             nonce=int(d["nonce"]),
             timestamp_ms=int(d["timestamp_ms"]),
-            signature=signature
+            data=d.get("data", "") or "",
+            signature=signature,
         )
 
 
@@ -64,16 +74,18 @@ class Block:
     previous_hash: str
     difficulty: int
     nonce: int
+    proposer: str          # address (20 bytes hex)
     block_hash: str
 
     def header_dict(self) -> Dict[str, Any]:
         return {
-            "index": self.index,
-            "timestamp_ms": self.timestamp_ms,
+            "index": int(self.index),
+            "timestamp_ms": int(self.timestamp_ms),
             "transactions": [tx.to_dict() for tx in self.transactions],
             "previous_hash": self.previous_hash,
-            "difficulty": self.difficulty,
-            "nonce": self.nonce,
+            "difficulty": int(self.difficulty),
+            "nonce": int(self.nonce),
+            "proposer": normalize_hex(self.proposer),
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -91,5 +103,6 @@ class Block:
             previous_hash=d["previous_hash"],
             difficulty=int(d["difficulty"]),
             nonce=int(d["nonce"]),
-            block_hash=d["hash"]
+            proposer=d.get("proposer", ""),
+            block_hash=d["hash"],
         )
