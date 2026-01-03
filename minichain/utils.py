@@ -18,17 +18,20 @@ def sha256_bytes(data: bytes) -> bytes:
 
 def keccak256(data: bytes) -> bytes:
     """
-    Ethereum uses Keccak-256 (not SHA-3 standardized padding).
-    We'll try to use pycryptodome if available; otherwise fall back to sha256 (toy fallback).
+    Keccak-256 (Ethereum). MUST be consistent across all nodes.
+    We intentionally DO NOT fallback to SHA-256 because that would
+    change address derivation and signature recovery across machines.
     """
     try:
         from Crypto.Hash import keccak  # type: ignore
         k = keccak.new(digest_bits=256)
         k.update(data)
         return k.digest()
-    except Exception:
-        # Fallback for environments without pycryptodome
-        return sha256_bytes(data)
+    except Exception as e:
+        raise RuntimeError(
+            "Keccak256 unavailable. Install pycryptodome on ALL nodes: "
+            "pip install pycryptodome. Original error: " + str(e)
+        )
 
 
 def canonical_json(obj: Any) -> bytes:
