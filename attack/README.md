@@ -1,67 +1,109 @@
-# attack/ – demo "secure vs vulnerable" nonce scenario
+ESPERIMENTI: ATTACCHI (SAFE vs VULN)
+================================
 
-This folder adds **alternative entrypoints** so you can run:
+Questa sezione descrive come eseguire esperimenti sugli attacchi usando la cartella `attack/`.
+Gli esperimenti mostrano la differenza tra una blockchain “sicura” (SAFE) e una vulnerabile (VULN).
 
-- **SAFE node**: normal rules (nonce checked + nonce incremented)
-- **VULNERABLE node**: simulated bug where the nonce is NOT enforced/consumed, enabling replay
+--------------------------------------------------
+REQUISITI
+--------------------------------------------------
+Su TUTTI i nodi (stesso virtualenv):
 
-Nothing in your original codebase needs to be edited: the vulnerable runner monkey-patches the rules at runtime.
+pip install -r requirements.txt
+pip install pycryptodome
 
----
+Verifica:
+python -c "from Crypto.Hash import keccak; print('keccak ok')"
 
-## 1) Start 3 nodes (SAFE)
+--------------------------------------------------
+RESET DELLO STATO (CONSIGLIATO)
+--------------------------------------------------
+Prima di ogni esperimento, riparti da uno stato pulito:
 
-From repo root:
+PowerShell:
+Remove-Item -Force .\data\state_500*.json, .\data\mempool_500*.json
 
-```bash
-# Terminal 1
-python -m attack.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 4 --block-reward 2
+Oppure usa il flag:
+--reset-state
 
-# Terminal 2
-python -m attack.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 4 --block-reward 2
+--------------------------------------------------
+ATTACCO 1: REPLAY ATTACK
+--------------------------------------------------
 
-# Terminal 3
-python -m attack.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 4 --block-reward 2
-```
+IDEA
+La stessa identica transazione firmata viene inviata più volte.
+Se il nonce non viene controllato o incrementato, la blockchain accetta
+più volte la stessa autorizzazione.
 
-Try the replay attack:
+--------------------------------------------------
+MODALITÀ SAFE (ATTACCO BLOCCATO)
+--------------------------------------------------
 
-```bash
-python -m attack.replay_attack --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --amount 5 --replays 5
-```
+Avvio nodi SAFE:
 
-Expected: most replays are rejected (bad nonce / duplicate), balances look normal.
+python -m attack.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 1 --reset-state --peers "http://<IP>:5002,http://<IP>:5003"
+python -m attack.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --difficulty 1 --reset-state --peers "http://<IP>:5001,http://<IP>:5003"
+python -m attack.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --difficulty 1 --reset-state --peers "http://<IP>:5001,http://<IP>:5002"
 
----
+Lancio attacco:
 
-## 2) Start 3 nodes (VULNERABLE)
+python -m attack.replay_attack --nodeA http://<IP>:5001 --nodeB http://<IP>:5002 --amount 5 --replays 5
 
-Stop nodes, then run the vulnerable entrypoint instead:
+RISULTATO ATTESO (SAFE):
+- replay rifiutati o marcati come "already seen"
+- nel blocco entra UNA sola transazione
+- bilanci coerenti con un solo trasferimento
 
-```bash
-# Terminal 1
-python -m attack.run_node_vuln --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 4 --block-reward 2
+--------------------------------------------------
+MODALITÀ VULN (ATTACCO RIUSCITO)
+--------------------------------------------------
 
-# Terminal 2
-python -m attack.run_node_vuln --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 4 --block-reward 2
+Per rendere l’attacco efficace:
+1) nonce non controllato
+2) dedup disattivata sul miner (--no-dedup)
+3) broadcast disattivato sull’attaccante (--no-broadcast)
 
-# Terminal 3
-python -m attack.run_node_vuln --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 4 --block-reward 2
-```
+Avvio nodi VULN:
 
-Run the attack again:
+Nodo A (miner):
+python -m attack.run_node_vuln --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 1 --reset-state --no-dedup --peers "http://<IP>:5002,http://<IP>:5003"
 
-```bash
-python -m attack.replay_attack --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --amount 5 --replays 5
-```
+Nodo B (attacker):
+python -m attack.run_node_vuln --port 5002 --wallet walletB.json --genesis genesis.json --difficulty 1 --reset-state --no-broadcast --peers "http://<IP>:5001,http://<IP>:5003"
 
-Expected: the *same signed tx* gets accepted multiple times and mined multiple times (replay),
-so the final balances show an anomalous repeated transfer.
+Nodo C (opzionale):
+python -m attack.run_node_vuln --port 5003 --wallet walletC.json --genesis genesis.json --difficulty 1 --reset-state --peers "http://<IP>:5001,http://<IP>:5002"
 
----
+Lancio attacco:
 
-## Notes
+python -m attack.replay_attack --nodeA http://<IP>:5001 --nodeB http://<IP>:5002 --amount 5 --replays 5
 
-- If your nodes persist state to disk, you may want to delete the per-port state files in `data/`
-  between runs so balances start from genesis each time.
-- `--mine-each` can be used to mine after each replay if your mempool happens to deduplicate.
+RISULTATO ATTESO (VULN):
+- replay accettati più volte ("accepted")
+- lo stesso blocco contiene più copie IDENTICHE della stessa transazione
+- bilanci finali:
+  A = A_iniziale + N * amount
+  B = B_iniziale - N * amount
+  (dove N = numero di replay + transazione originale)
+
+--------------------------------------------------
+NOTE CONCETTUALI (PER ESAME)
+--------------------------------------------------
+
+- L’address NON è dichiarativo: è derivato dalla public key.
+- Il mittente di una transazione viene ricostruito dalla firma.
+- Il nonce impone un ordine totale sulle transazioni di un account.
+- Se il nonce non viene verificato o incrementato, nasce un replay attack.
+
+--------------------------------------------------
+TROUBLESHOOTING
+--------------------------------------------------
+
+Problema: vedo "already seen" anche in VULN
+- il miner non ha --no-dedup
+- l’attaccante ha broadcast attivo
+
+Problema: insufficient funds ma genesis assegna 100
+- l’address nel genesis NON coincide con quello derivato dalla public key
+
+--------------------------------------------------
