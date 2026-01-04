@@ -1,177 +1,244 @@
-# Mini-Blockchain (3 nodes) with ECDSA secp256k1
+MINICHAIN – TOY BLOCKCHAIN + ATTACK LABS (ECDSA)
+=================================================
+
+Questo progetto implementa una blockchain didattica (toy blockchain)
+ispirata a Ethereum, basata su firme ECDSA (secp256k1), con l’obiettivo
+di studiare sia il funzionamento interno di una blockchain sia alcune
+vulnerabilità reali di tipo crittografico e di protocollo.
+
+La repository NON è pensata per uso in produzione.
+Tutto il codice è intenzionalmente semplice e in alcuni casi volutamente
+insicuro per poter dimostrare gli attacchi.
+
+
+-------------------------------------------------
+1. OBIETTIVI DEL PROGETTO
+-------------------------------------------------
+
+Il progetto ha quattro obiettivi principali:
+
+1) Comprendere il funzionamento base di una blockchain:
+   - transazioni
+   - mempool
+   - blocchi
+   - mining (Proof-of-Work semplificata)
+   - sincronizzazione tra nodi
 
-Authors: Michele Magrini, Francesco Marrocco, Leo Petrarca
+2) Capire come funziona ECDSA:
+   - firma
+   - recovery della chiave pubblica
+   - ruolo critico del nonce k
 
-This repo contains a didactic mini-blockchain that runs on 3 computers (or 3 terminals).
-It uses:
-- ECDSA signatures on secp256k1 (Bitcoin-style curve)
-- Signed transactions
-- Block chaining with SHA-256
-- Light Proof-of-Work (PoW) for a “mining” demo
-- Peer-to-peer propagation via HTTP (Flask)
+3) Dimostrare attacchi reali:
+   - Replay Attack
+   - ECDSA Weak Nonce Attack (nonce riusato)
+   - ECDSA Weak Nonce Attack (nonce lineare)
 
+4) Collegare algebra lineare, crittografia e sicurezza dei protocolli
 
 
-## 1) Setup
+-------------------------------------------------
+2. STRUTTURA DELLA REPOSITORY
+-------------------------------------------------
 
+.
+├── README.txt              (questo file)
+├── requirements.txt
+├── .gitignore
+│
+├── wallets/                (wallet JSON con chiavi private)
+│   ├── walletA.json
+│   ├── walletB.json
+│   └── walletC.json
+│
+├── data/                   (stato persistente dei nodi)
+│   └── node_<PORT>/state.json
+│
+├── minichain/              (core blockchain)
+│   ├── crypto.py           (ECDSA, firma, recovery)
+│   ├── chain.py            (regole blockchain)
+│   ├── node.py             (nodo HTTP)
+│   ├── paths.py            (gestione wallets/)
+│   └── ...
+│
+├── scripts/                (script CLI)
+│   ├── create_wallet.py
+│   ├── send_tx.py
+│   ├── run_node_safe.py
+│   ├── run_node_vuln.py
+│   └── demo_scenario.py
+│
+└── attacks/                (attacchi)
+    ├── replay_attack.py
+    └── weak_nonce/
+        ├── make_weak_txs.py
+        └── recover_privkey.py
 
-Requirements:
-- Python 3.10+ recommended
-- 3 machines in the same LAN (or use localhost with 3 ports)
 
-Install:
-    pip install -r requirements.txt
+-------------------------------------------------
+3. INSTALLAZIONE
+-------------------------------------------------
 
-If `coincurve` fails to install, it’s usually a platform/build issue.
-Tell me your OS + Python version and I’ll provide a fallback.
+Creare un ambiente virtuale:
 
-## 2) Create wallets (one per node)
+python -m venv .venv
+source .venv/bin/activate        (Linux / Mac)
+.venv\Scripts\activate         (Windows)
 
+Installare le dipendenze:
 
-On each machine (or once, then copy files):
+pip install -r requirements.txt
 
-    python scripts/create_wallet.py --out walletA.json
-    python scripts/create_wallet.py --out walletB.json
-    python scripts/create_wallet.py --out walletC.json
 
-Each wallet JSON contains:
-- private_key_hex
-- public_key_hex (compressed secp256k1 pubkey)
+-------------------------------------------------
+4. WALLET
+-------------------------------------------------
 
+I wallet sono salvati nella cartella:
 
-## 3) Run 3 nodes
+wallets/
 
+Ogni wallet contiene:
+- chiave privata ECDSA
+- chiave pubblica
+- address (20 byte hex)
 
-Choose three ports (example: 5001, 5002, 5003).
-Each node knows its peers via --peers.
+Creare i wallet:
 
-Node A (miner) on PC1:
+python -m scripts.create_wallet --out walletA.json
+python -m scripts.create_wallet --out walletB.json
+python -m scripts.create_wallet --out walletC.json
 
-    python -m run_node --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://PC_1_ID:5002,http://PC_1_ID:5003" --block-reward 0
+I file vengono creati automaticamente in wallets/.
 
-Node B (client) on PC2
 
-Give B some initial coins too (for easy demo):
+-------------------------------------------------
+5. AVVIO DEI NODI (SAFE)
+-------------------------------------------------
 
-    python -m run_node --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://PC_2_ID:5001,http://PC_2_ID:5003" --block-reward 0
+È possibile avviare più nodi sullo stesso PC usando porte diverse.
 
-Node C (validator) on PC3:
+Nodo A (miner):
 
-    python -m run_node --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://PC_3_ID:5002,http://PC_3_ID:5001" --block-reward 0
+python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2 
 
+Nodo B:
 
-If you are testing on ONE machine, use localhost peers:
-- Node A peers: http://127.0.0.1:5002,http://127.0.0.1:5003
-- Node B peers: http://127.0.0.1:5001,http://127.0.0.1:5003
-- Node C peers: http://127.0.0.1:5001,http://127.0.0.1:5002
+python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
 
-## 4) Check the nodes
+Nodo C:
 
+python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
 
-Open in browser or curl:
-- GET /identity  -> public key, height, peers
-- GET /state     -> chain + mempool + balances
-- GET /chain     -> chain only
 
-Example:
+-------------------------------------------------
+6. TRANSAZIONI NORMALI
+-------------------------------------------------
 
-    curl http://PC1_IP:5001/identity
-    curl http://PC1_IP:5001/state
+Inviare una transazione:
 
-## 5) Create and send a signed transaction
+python -m scripts.send_tx --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 5
 
+Minare un blocco:
 
-Option A (recommended): let the node compute the nonce
+curl.exe -X POST http://127.0.0.1:5001/mine -H "Content-Type: application/json" -d "{}"
 
-Use Node B to create+sign locally and broadcast:
 
-    python scripts/send_tx.py --node http://PC2_IP:5002 --wallet walletB.json --to <PUBKEY_A> --amount 5
+-------------------------------------------------
+7. DEMO SCENARIO AUTOMATICO
+-------------------------------------------------
 
-When --nonce is omitted, it calls POST /local/make_tx which:
-- computes the next nonce for that sender
-- signs the tx
-- broadcasts it to peers
+Simula:
+- B -> A
+- mining su A
+- verifica sincronizzazione
 
-Option B: manually specify a nonce
+python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --nodeC http://127.0.0.1:5003 --amount 5
 
-    python scripts/send_tx.py --node http://PC2_IP:5002 --wallet walletB.json --to <PUBKEY_A> --amount 5 --nonce 0
 
-## 6) Mine a block (PoW light)
+=================================================
+ATTACCHI
+=================================================
 
-On Node A:
+-------------------------------------------------
+8. REPLAY ATTACK
+-------------------------------------------------
 
-    curl -X POST http://PC1_IP:5001/mine -H "Content-Type: application/json" -d "{}"
+Descrizione:
+Un replay attack consiste nel reinviare IDENTICA una transazione firmata.
+Se il protocollo non protegge nonce e duplicati, la stessa transazione
+può essere accettata più volte.
 
-If mining is too slow, lower difficulty when starting nodes:
+Nel progetto il nodo vulnerabile:
+- non verifica il nonce
+- non incrementa il nonce
+- accetta duplicati
 
-    python run_node.py --port 5001 --wallet walletA.json --difficulty 3 ...
+Nodo A (vulnerabile):
 
+python -m scripts.run_node_vuln --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2 --no-dedup
 
-## 7) Sync if needed
+Nodo B (attaccante):
 
+python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
 
-If a node missed a broadcast:
-    curl -X POST http://PC3_IP:5003/sync -H "Content-Type: application/json" -d "{}"
+Esecuzione attacco:
 
-## 8) Nice outputs for the exam
+python -m attacks.replay_attack --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --amount 5 --replays 5
 
-Each node writes artifacts to its data/ folder:
-- data/chain_<port>.json   (chain + mempool + balances)
-- data/mempool_<port>.json
+Risultato:
+La stessa transazione viene applicata più volte, causando
+trasferimenti ripetuti non autorizzati.
 
-You can show:
-- accepted/rejected transactions with reason
-- mined blocks with tries and hash prefix 0000...
-- final chain state as JSON (easy to screenshot)
 
-## 9) Demo script (optional)
+-------------------------------------------------
+9. ECDSA WEAK NONCE – RIUSO
+-------------------------------------------------
 
-Once nodes are running:
+Descrizione:
+Se due firme ECDSA usano lo stesso nonce k,
+la chiave privata può essere recuperata.
 
-    python scripts/demo_scenario.py --nodeA http://PC1_IP:5001 --nodeB http://PC2_IP:5002 --nodeC http://PC3_IP:5003 --amount 5
+Generare transazioni deboli:
 
-## 10) How to write the final project (suggested structure)
+python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 1 --mode reuse --outdir attacks/weak_nonce/out_reuse
 
-A) Theory (Math + Crypto)
-1. Elliptic curves over finite fields: E(F_p) and group law
-2. secp256k1 parameters: why y^2 = x^3 + 7 (mod p) and prime-order subgroup
-3. ECDSA:
-   - keygen: Q = dG
-   - signing: (r,s) = (x(kG) mod n, k^{-1}(H(m)+rd) mod n)
-   - verification: u1G + u2Q check
-4. Security:
-   - ECDLP intuition
-   - why nonce reuse breaks ECDSA (mention RFC 6979)
+Recuperare la chiave privata:
 
-B) System design (Blockchain)
-1. Data model: Transaction / Block
-2. Hash chaining: integrity
-3. Mempool: pending transactions
-4. PoW (light): educational mining
-5. P2P propagation: broadcast to peers
-6. Validation rules: signature, hash, prev_hash, PoW, nonce ordering, balances
+python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonce/out_reuse/tx1.json attacks/weak_nonce/out_reuse/tx2.json
 
-C) Experiments (what to show)
-1. Happy path: B->A tx, mined block, same height on all nodes
-2. Tampering: modify tx after signing -> rejected
-3. Replay: reuse nonce -> rejected
-4. Optional: change difficulty and measure mining tries/time
 
-D) Results
-- Timing (mining tries, signature verify time)
-- Screenshots/logs
-- JSON chain outputs
+-------------------------------------------------
+10. ECDSA WEAK NONCE – LINEARE
+-------------------------------------------------
 
+Descrizione:
+Nonce generato come:
+k = a*z + b  (mod n)
 
-## 11) Troubleshooting
+Con 3 firme è possibile risolvere il sistema
+e recuperare la chiave privata.
 
-- “insufficient funds”: start the sender node with --faucet
-- mining too slow: lower --difficulty
-- nodes out of sync: call /sync
-- port blocked: ensure LAN firewall allows chosen ports
+Generazione:
 
+python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 1 --mode linear --outdir attacks/weak_nonce/out_linear
 
-If you want, I can also provide:
-- a minimal web dashboard to visualize blocks/txs,
-- a Merkle tree extension,
-- or an ECDSA “nonce reuse” attack demo on a small toy curve (safe for teaching).
+Recupero chiave:
+
+python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_nonce/out_linear/tx1.json attacks/weak_nonce/out_linear/tx2.json attacks/weak_nonce/out_linear/tx3.json
+
+
+-------------------------------------------------
+11. NOTE FINALI
+-------------------------------------------------
+
+ATTENZIONE:
+- Wallet contengono chiavi private reali
+- Codice volutamente insicuro
+- Progetto solo per studio e didattica
+
+Obiettivi didattici:
+- capire ECDSA
+- capire il ruolo del nonce
+- osservare attacchi reali
+- collegare algebra e sicurezza

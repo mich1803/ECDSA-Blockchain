@@ -1,4 +1,3 @@
-# attack/run_node_vuln.py
 """
 Vulnerable node runner:
 - nonce not enforced
@@ -6,7 +5,7 @@ Vulnerable node runner:
 - duplicate txs allowed in mempool
 
 NOTE:
-To allow replay of the exact same tx over the network, you must also run nodes with:
+To allow replay of the exact same tx payload over the network, you must also run node with:
   --no-dedup
 because minichain/node.py can otherwise drop repeats at the HTTP layer.
 """
@@ -32,7 +31,7 @@ def patch_blockchain_vuln():
 
         acc = self.get_account(sender)
 
-        # VULN: ignore nonce check completely (do not reject even if mismatch)
+        # VULN: ignore nonce check completely
         bal = int(acc["balance"])
         if bal < tx.value:
             return False, f"insufficient funds (bal={bal}, need={tx.value})", None
@@ -57,7 +56,7 @@ def patch_blockchain_vuln():
 
     Blockchain.apply_tx = apply_tx_vuln
 
-    # 3) Allow duplicates in mempool (no (sender, nonce) duplicate rejection)
+    # 3) Allow duplicates in mempool
     def add_tx_to_mempool_vuln(self, tx):
         ok, why, sender = self.check_tx_rules(tx)
         if not ok or sender is None:

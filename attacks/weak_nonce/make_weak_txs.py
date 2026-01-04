@@ -11,6 +11,7 @@ from minichain.storage import read_json
 from minichain.models import Transaction, Signature
 from minichain.utils import utc_ms, canonical_json, normalize_hex, is_address, Log
 from minichain.crypto import hash_msg, pubkey_from_hex, pubkey_to_address, recover_pubkey_uncompressed
+from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 
 # secp256k1 curve order n
 N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
@@ -80,17 +81,27 @@ def send_tx(node: str, tx: Transaction):
 def main():
     p = argparse.ArgumentParser(description="Generate tx(s) with WEAK ECDSA nonce and send to a minichain node.")
     p.add_argument("--node", required=True, help="e.g. http://127.0.0.1:5001")
-    p.add_argument("--wallet", required=True, help="victim wallet json (private key inside!)")
+    p.add_argument(
+        "--wallet",
+        default="wallet.json",
+        help="victim wallet filename or path. If filename only, loaded from wallets/",
+    )
+    p.add_argument("--wallets-dir", default=DEFAULT_WALLETS_DIR, help="Base directory for wallet files")
     p.add_argument("--to", required=True, help="receiver address 40-hex (no 0x)")
     p.add_argument("--amount", type=int, default=1)
-    p.add_argument("--mode", choices=["reuse", "linear"], default="reuse",
-                   help="reuse: same k for 2 tx; linear: k=a*z+b for 3 tx")
+    p.add_argument(
+        "--mode",
+        choices=["reuse", "linear"],
+        default="reuse",
+        help="reuse: same k for 2 tx; linear: k=a*z+b for 3 tx",
+    )
     p.add_argument("--outdir", default="weak_nonce", help="where to write tx*.json (default: weak_nonce)")
     args = p.parse_args()
 
-    w = read_json(args.wallet)
+    wallet_path = resolve_wallet_path(args.wallet, args.wallets_dir)
+    w = read_json(wallet_path)
     if not w:
-        raise SystemExit(f"wallet not found: {args.wallet}")
+        raise SystemExit(f"wallet not found: {wallet_path}")
 
     priv = w["private_key_hex"]
     pub = pubkey_from_hex(w["public_key_hex"])

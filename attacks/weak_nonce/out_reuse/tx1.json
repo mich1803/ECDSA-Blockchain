@@ -1,0 +1,12 @@
+{
+  "to": "822caef955eb7d90bc961d9519c1a95045bbc62f",
+  "value": 1,
+  "nonce": 0,
+  "timestamp_ms": 1767549426545,
+  "data": "",
+  "signature": {
+    "v": 1,
+    "r": "cb120fcedc18c9f56a66b5fcd97f3b0533ce61c7dee917c1e487dbc9559710dc",
+    "s": "cf6482d7d70c6b1b7625ba551926ec97eef910c380437a9449248ff8f88381b2"
+  }
+}

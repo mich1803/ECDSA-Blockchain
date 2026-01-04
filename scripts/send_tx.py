@@ -5,20 +5,24 @@ from minichain.storage import read_json
 from minichain.models import Transaction, Signature
 from minichain.utils import utc_ms, canonical_json, Log, normalize_hex, is_address
 from minichain.crypto import sign_digest_recoverable, hash_msg
+from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 
 
 def main():
     p = argparse.ArgumentParser(description="Create + sign an Ethereum-like tx (no fees) and send to node")
     p.add_argument("--node", required=True, help="Node base url, e.g. http://127.0.0.1:5001")
-    p.add_argument("--wallet", default="wallet.json")
+    p.add_argument("--wallet", default="wallet.json", help="filename or path. If filename only, loaded from wallets/")
+    p.add_argument("--wallets-dir", default=DEFAULT_WALLETS_DIR)
     p.add_argument("--to", required=True, help="receiver address hex (20 bytes, 40 hex chars)")
     p.add_argument("--amount", type=int, required=True, help="value to transfer")
     p.add_argument("--nonce", type=int, default=None, help="manual nonce; if omitted we fetch /nonce/<address>")
     args = p.parse_args()
 
-    w = read_json(args.wallet)
+    wallet_path = resolve_wallet_path(args.wallet, args.wallets_dir)
+
+    w = read_json(wallet_path)
     if not w:
-        raise SystemExit(f"wallet not found: {args.wallet}")
+        raise SystemExit(f"wallet not found: {wallet_path}")
 
     sender_priv = w["private_key_hex"]
     sender_addr = normalize_hex(w.get("address", ""))
