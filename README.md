@@ -234,6 +234,7 @@ python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonc
 
 ### Description:
 Nonce generated as: $k = a \cdot z + b \pmod{n}$
+
 With 3 signatures it is possible to solve the system and recover the private key.
 
 ### Generation:
