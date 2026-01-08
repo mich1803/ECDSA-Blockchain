@@ -112,81 +112,93 @@ Files are automatically created in `wallets/`.
 
 È possibile avviare più nodi sullo stesso PC usando porte diverse.
 
-Nodo A (miner):
+Node A (miner):
 
+```
 python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2 
+```
 
-Nodo B:
+Node B:
 
+```
 python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
+```
 
-Nodo C:
+Node C:
 
+```
 python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
-
+```
 
 -------------------------------------------------
-6. TRANSAZIONI NORMALI
+## 6. Normal Transactions
 -------------------------------------------------
 
-Inviare una transazione:
-
+Send a transaction:
+```
 python -m scripts.send_tx --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 5
+```
 
-Minare un blocco:
+Mine a block:
 
+```
 curl.exe -X POST http://127.0.0.1:5001/mine -H "Content-Type: application/json" -d "{}"
-
+```
 
 -------------------------------------------------
-7. DEMO SCENARIO AUTOMATICO
+## 7. Automatic Demo Scenario
 -------------------------------------------------
 
-Simula:
-- B -> A
-- mining su A
-- verifica sincronizzazione
+Simulates:
+- B -> A transaction
+- mining on A
+- synchronization check
 
+```
 python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --nodeC http://127.0.0.1:5003 --amount 5
-
+```
 
 =================================================
-ATTACCHI
+ATTACKS
 =================================================
 
 -------------------------------------------------
-8. REPLAY ATTACK
+## 8. Replay Attack
 -------------------------------------------------
 
-Descrizione:
-Un replay attack consiste nel reinviare IDENTICA una transazione firmata.
-Se il protocollo non protegge nonce e duplicati, la stessa transazione
-può essere accettata più volte.
+### Description:
+A replay attack consists of re-sending an IDENTICAL signed transaction. If the protocol does not protect nonces and duplicates, the same transaction can be accepted multiple times.
 
-Nel progetto il nodo vulnerabile:
-- non verifica il nonce
-- non incrementa il nonce
-- accetta duplicati
+In this project, the vulnerable node:
 
-Nodo A (vulnerabile):
+-Does not verify the nonce
+-Does not increment the nonce
+-Accepts duplicates
 
+### Nodo A (vulnerable):
+
+```
 python -m scripts.run_node_vuln --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2 --no-dedup
+```
 
-Nodo B (attaccante):
+### Nodo B (attaccante):
 
+```
 python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
+```
 
-Esecuzione attacco:
+### Attack execution:
 
+```
 python -m attacks.replay_attack --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --amount 5 --replays 5
+```
 
-Risultato:
-La stessa transazione viene applicata più volte, causando
-trasferimenti ripetuti non autorizzati.
+### Result:
+The same transaction is applied multiple times, causing unauthorized repeated transfers.
 
 
 -------------------------------------------------
-9. ECDSA WEAK NONCE – RIUSO
+## 9. ECDSA WEAK NONCE – Reuse
 -------------------------------------------------
 
 Descrizione:
@@ -203,7 +215,7 @@ python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonc
 
 
 -------------------------------------------------
-10. ECDSA WEAK NONCE – LINEARE
+## 10. ECDSA WEAK NONCE – Linear
 -------------------------------------------------
 
 Descrizione:
@@ -223,7 +235,7 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 
 
 -------------------------------------------------
-11. NOTE FINALI
+## 11. Final Notes
 -------------------------------------------------
 
 ATTENZIONE:
