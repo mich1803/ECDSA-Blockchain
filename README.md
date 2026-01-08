@@ -1,8 +1,6 @@
 ![Minichain banner](media/header.jpg)
 =================================================
 
-# Minichain
-![Minichain banner](media/header.jpg)
 
 This project implements an **educational blockchain** (toy blockchain) inspired by Ethereum, based on **ECDSA signatures (secp256k1)**. The goal is to study both the internal mechanics of a blockchain and real-world cryptographic and protocol vulnerabilities.
 
@@ -29,9 +27,10 @@ The project focuses on four main objectives:
     * ECDSA Weak Nonce Attack (linear nonce)
 4.  **Bridge the gap** between linear algebra, cryptography, and protocol security.
 
----
-
+-------------------------------------------------
 ## 2. Repository Structure
+-------------------------------------------------
+
 .
 ├── README.md               (this file)
 ├── requirements.txt
@@ -67,44 +66,48 @@ The project focuses on four main objectives:
 
 
 -------------------------------------------------
-3. INSTALLAZIONE
+## 3. Installation
 -------------------------------------------------
 
-Creare un ambiente virtuale:
+Create a virtual environment:
 
+```
 python -m venv .venv
 source .venv/bin/activate        (Linux / Mac)
 .venv\Scripts\activate         (Windows)
+```
 
-Installare le dipendenze:
+Install dependencies:
 
+```
 pip install -r requirements.txt
+```
 
 
 -------------------------------------------------
-4. WALLET
+## 4. Wallet
 -------------------------------------------------
 
-I wallet sono salvati nella cartella:
+Wallets are saved in the folder: `wallets/`
 
-wallets/
-
-Ogni wallet contiene:
-- chiave privata ECDSA
-- chiave pubblica
+Each wallet contains:
+- ECDSA private key
+- public key
 - address (20 byte hex)
 
-Creare i wallet:
+Create wallets:
 
+```
 python -m scripts.create_wallet --out walletA.json
 python -m scripts.create_wallet --out walletB.json
 python -m scripts.create_wallet --out walletC.json
+```
 
-I file vengono creati automaticamente in wallets/.
+Files are automatically created in `wallets/`.
 
 
 -------------------------------------------------
-5. AVVIO DEI NODI (SAFE)
+## 5. Starting nodes (SAFE)
 -------------------------------------------------
 
 È possibile avviare più nodi sullo stesso PC usando porte diverse.
