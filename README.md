@@ -49,7 +49,7 @@ Key points covered in the report include:
 -------------------------------------------------
 ## 2. Repository Structure
 -------------------------------------------------
-
+```
 .
 ├── wallets/                 # JSON wallets with private keys
 │   ├── walletA.json
@@ -75,7 +75,7 @@ Key points covered in the report include:
 │       └── recover_privkey.py
 ├── requirements.txt
 └── README.md
-
+```
 
 -------------------------------------------------
 ## 3. Installation
