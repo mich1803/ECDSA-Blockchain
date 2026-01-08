@@ -1,74 +1,65 @@
 ![Minichain banner](media/header.jpg)
 =================================================
 
-Questo progetto implementa una blockchain didattica (toy blockchain)
-ispirata a Ethereum, basata su firme ECDSA (secp256k1), con l’obiettivo
-di studiare sia il funzionamento interno di una blockchain sia alcune
-vulnerabilità reali di tipo crittografico e di protocollo.
+# Minichain
+![Minichain banner](media/header.jpg)
 
-La repository NON è pensata per uso in produzione.
-Tutto il codice è intenzionalmente semplice e in alcuni casi volutamente
-insicuro per poter dimostrare gli attacchi.
+This project implements an **educational blockchain** (toy blockchain) inspired by Ethereum, based on **ECDSA signatures (secp256k1)**. The goal is to study both the internal mechanics of a blockchain and real-world cryptographic and protocol vulnerabilities.
 
+> **WARNING:** This repository is NOT intended for production use. All code is intentionally simple and, in some cases, deliberately insecure to demonstrate specific attacks.
 
--------------------------------------------------
-1. OBIETTIVI DEL PROGETTO
--------------------------------------------------
+---
 
-Il progetto ha quattro obiettivi principali:
+## 1. Project Goals
+The project focuses on four main objectives:
 
-1) Comprendere il funzionamento base di una blockchain:
-   - transazioni
-   - mempool
-   - blocchi
-   - mining (Proof-of-Work semplificata)
-   - sincronizzazione tra nodi
+1.  **Understand basic blockchain operations**:
+    * Transactions
+    * Mempool
+    * Blocks
+    * Mining (Simplified Proof-of-Work)
+    * Node synchronization
+2.  **Understand ECDSA**:
+    * Signing process
+    * Public key recovery
+    * The critical role of the nonce $k$
+3.  **Demonstrate real attacks**:
+    * Replay Attack
+    * ECDSA Weak Nonce Attack (nonce reuse)
+    * ECDSA Weak Nonce Attack (linear nonce)
+4.  **Bridge the gap** between linear algebra, cryptography, and protocol security.
 
-2) Capire come funziona ECDSA:
-   - firma
-   - recovery della chiave pubblica
-   - ruolo critico del nonce k
+---
 
-3) Dimostrare attacchi reali:
-   - Replay Attack
-   - ECDSA Weak Nonce Attack (nonce riusato)
-   - ECDSA Weak Nonce Attack (nonce lineare)
-
-4) Collegare algebra lineare, crittografia e sicurezza dei protocolli
-
-
--------------------------------------------------
-2. STRUTTURA DELLA REPOSITORY
--------------------------------------------------
-
+## 2. Repository Structure
 .
-├── README.txt              (questo file)
+├── README.md               (this file)
 ├── requirements.txt
 ├── .gitignore
 │
-├── wallets/                (wallet JSON con chiavi private)
+├── wallets/                (JSON wallets with private keys)
 │   ├── walletA.json
 │   ├── walletB.json
 │   └── walletC.json
 │
-├── data/                   (stato persistente dei nodi)
+├── data/                   (persistent node state)
 │   └── node_<PORT>/state.json
 │
-├── minichain/              (core blockchain)
-│   ├── crypto.py           (ECDSA, firma, recovery)
-│   ├── chain.py            (regole blockchain)
-│   ├── node.py             (nodo HTTP)
-│   ├── paths.py            (gestione wallets/)
+├── minichain/              (core blockchain logic)
+│   ├── crypto.py           (ECDSA, signing, recovery)
+│   ├── chain.py            (blockchain rules)
+│   ├── node.py             (HTTP node)
+│   ├── paths.py            (wallets/ management)
 │   └── ...
 │
-├── scripts/                (script CLI)
+├── scripts/                (CLI scripts)
 │   ├── create_wallet.py
 │   ├── send_tx.py
 │   ├── run_node_safe.py
 │   ├── run_node_vuln.py
 │   └── demo_scenario.py
 │
-└── attacks/                (attacchi)
+└── attacks/                (attack scripts)
     ├── replay_attack.py
     └── weak_nonce/
         ├── make_weak_txs.py
