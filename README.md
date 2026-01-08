@@ -158,10 +158,8 @@ Simulates:
 python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --nodeC http://127.0.0.1:5003 --amount 5
 ```
 
-=================================================
-ATTACKS
-=================================================
 
+# ATTACKS
 -------------------------------------------------
 ## 8. Replay Attack
 -------------------------------------------------
@@ -201,50 +199,54 @@ The same transaction is applied multiple times, causing unauthorized repeated tr
 ## 9. ECDSA WEAK NONCE – Reuse
 -------------------------------------------------
 
-Descrizione:
-Se due firme ECDSA usano lo stesso nonce k,
-la chiave privata può essere recuperata.
+### Description:
 
-Generare transazioni deboli:
+If two ECDSA signatures use the same nonce $k$, the private key can be recovered.
 
+### Generate weak transactions:
+
+```
 python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 1 --mode reuse --outdir attacks/weak_nonce/out_reuse
+```
 
-Recuperare la chiave privata:
-
+### Recover the private key:
+```
 python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonce/out_reuse/tx1.json attacks/weak_nonce/out_reuse/tx2.json
-
+```
 
 -------------------------------------------------
 ## 10. ECDSA WEAK NONCE – Linear
 -------------------------------------------------
 
-Descrizione:
-Nonce generato come:
-k = a*z + b  (mod n)
+### Description:
+Nonce generated as: $k = a \cdot z + b \pmod{n}$
+With 3 signatures it is possible to solve the system and recover the private key.
 
-Con 3 firme è possibile risolvere il sistema
-e recuperare la chiave privata.
-
-Generazione:
-
+### Generation:
+```
 python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 1 --mode linear --outdir attacks/weak_nonce/out_linear
-
-Recupero chiave:
-
+```
+### Key Recovery:
+```
 python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_nonce/out_linear/tx1.json attacks/weak_nonce/out_linear/tx2.json attacks/weak_nonce/out_linear/tx3.json
-
+```
 
 -------------------------------------------------
 ## 11. Final Notes
 -------------------------------------------------
 
-ATTENZIONE:
-- Wallet contengono chiavi private reali
-- Codice volutamente insicuro
-- Progetto solo per studio e didattica
+### WARNINGS:
+- Wallets contain real private keys.
 
-Obiettivi didattici:
-- capire ECDSA
-- capire il ruolo del nonce
-- osservare attacchi reali
-- collegare algebra e sicurezza
+- Code is intentionally insecure.
+
+- Project for study and educational use only.
+
+### Obiettivi didattici:
+-Understand ECDSA.
+
+-Understand the role of the nonce.
+
+-Observe real attacks.
+
+-Connect algebra and security.
