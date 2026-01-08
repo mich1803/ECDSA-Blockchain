@@ -27,6 +27,25 @@ The project focuses on four main objectives:
     * ECDSA Weak Nonce Attack (linear nonce)
 4.  **Bridge the gap** between linear algebra, cryptography, and protocol security.
 
+### Theoretical Foundations
+
+The project is accompanied by detailed documentation analyzing the algebraic foundations of the system. 
+Key points covered in the report include:
+#### Elliptic Curve Cryptography
+- secp256k1 Curve: The system uses the standard elliptic curve defined by the equation $y^{2}\equiv x^{3}+7 \pmod p$.
+- Public Key Recovery: To optimize space, the public key $Q$ is not stored in transactions but is instead recovered from the signature $(r, s)$ using the formula $Q=r^{-1}(sR-eG)$. This operation is implemented in the `crypto.py` module.
+
+#### Architecture and States
+- Account Model: Unlike UTXO-based systems, this project implements an Account Model where the global state $\Sigma_{t}$ maps each address to its balance and account nonce.
+- Nonce Disambiguation: The system distinguishes between three fundamental types of nonces:
+  1. Cryptographic Nonce ($k$): The ephemeral scalar used in the ECDSA algorithm; if reused, it leads to private key compromise.
+  2. Account Nonce ($n_{acc}$): A sequential counter used to prevent Replay Attacks.
+  3. Mining Nonce ($n_{pow}$): A variable field in the block header used by miners to solve the Proof-of-Work puzzle.
+
+#### Vulnerability Analysis
+- Linear Cryptanalysis: The report mathematically demonstrates how reusing $k$ for two different messages allows an attacker to set up a system of linear equations in $\mathbb{Z}_n$ to isolate and calculate the private key $d$.
+- Replay Attack: It analyzes how the absence of state constraints (specifically, disabling account nonce verification) allows a mathematically valid signature to be processed multiple times.
+
 -------------------------------------------------
 ## 2. Repository Structure
 -------------------------------------------------
