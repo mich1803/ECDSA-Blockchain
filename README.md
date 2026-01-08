@@ -122,7 +122,7 @@ Files are automatically created in `wallets/`.
 ## 5. Starting nodes (SAFE)
 -------------------------------------------------
 
-È possibile avviare più nodi sullo stesso PC usando porte diverse.
+Multiple nodes can be started on the same machine using different ports.
 
 Node A (miner):
 
