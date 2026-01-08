@@ -251,13 +251,15 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 -------------------------------------------------
 
 ### WARNINGS:
+
 - Wallets contain real private keys.
 
 - Code is intentionally insecure.
 
 - Project for study and educational use only.
 
-### Obiettivi didattici:
+### Educational Goals:
+
 - Understand ECDSA.
 
 - Understand the role of the nonce.
