@@ -51,37 +51,30 @@ Key points covered in the report include:
 -------------------------------------------------
 
 .
-├── README.md               (this file)
-├── requirements.txt
-├── .gitignore
-│
-├── wallets/                (JSON wallets with private keys)
+├── wallets/                 # JSON wallets with private keys
 │   ├── walletA.json
 │   ├── walletB.json
 │   └── walletC.json
-│
-├── data/                   (persistent node state)
+├── data/                    # Persistent node state
 │   └── node_<PORT>/state.json
-│
-├── minichain/              (core blockchain logic)
-│   ├── crypto.py           (ECDSA, signing, recovery)
-│   ├── chain.py            (blockchain rules)
-│   ├── node.py             (HTTP node)
-│   ├── paths.py            (wallets/ management)
-│   └── ...
-│
-├── scripts/                (CLI scripts)
+├── minichain/               # Core blockchain logic
+│   ├── crypto.py            # ECDSA, signing, recovery
+│   ├── chain.py             # Blockchain rules
+│   ├── node.py              # HTTP node
+│   └── paths.py             # Wallets management
+├── scripts/                 # CLI scripts
 │   ├── create_wallet.py
 │   ├── send_tx.py
 │   ├── run_node_safe.py
 │   ├── run_node_vuln.py
 │   └── demo_scenario.py
-│
-└── attacks/                (attack scripts)
-    ├── replay_attack.py
-    └── weak_nonce/
-        ├── make_weak_txs.py
-        └── recover_privkey.py
+├── attacks/                 # Attack scripts
+│   ├── replay_attack.py
+│   └── weak_nonce/
+│       ├── make_weak_txs.py
+│       └── recover_privkey.py
+├── requirements.txt
+└── README.md
 
 
 -------------------------------------------------
