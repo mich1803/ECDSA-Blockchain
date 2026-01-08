@@ -1,4 +1,4 @@
-MINICHAIN – TOY BLOCKCHAIN + ATTACK LABS (ECDSA)
+![Minichain banner](media/header.jpg)
 =================================================
 
 Questo progetto implementa una blockchain didattica (toy blockchain)
