@@ -169,9 +169,11 @@ A replay attack consists of re-sending an IDENTICAL signed transaction. If the p
 
 In this project, the vulnerable node:
 
--Does not verify the nonce
--Does not increment the nonce
--Accepts duplicates
+- Does not verify the nonce
+  
+- Does not increment the nonce
+  
+- Accepts duplicates
 
 ### Nodo A (vulnerable):
 
@@ -243,10 +245,10 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 - Project for study and educational use only.
 
 ### Obiettivi didattici:
--Understand ECDSA.
+- Understand ECDSA.
 
--Understand the role of the nonce.
+- Understand the role of the nonce.
 
--Observe real attacks.
+- Observe real attacks.
 
--Connect algebra and security.
+- Connect algebra and security.
