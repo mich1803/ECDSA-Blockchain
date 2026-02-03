@@ -10,7 +10,7 @@ from flask import Flask, request, jsonify
 
 from .chain import Blockchain, ChainConfig
 from .models import Transaction, Block, Signature
-from .crypto import sign_digest_recoverable, hash_msg, pubkey_from_hex, pubkey_to_address
+from .crypto import sign_digest, hash_msg, pubkey_from_hex, pubkey_to_address
 from .storage import read_json, write_json, ensure_dir
 from .utils import Log, utc_ms, canonical_json, short, normalize_hex, is_address
 from .paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
@@ -66,7 +66,12 @@ def run():
     )
 
     parser.add_argument("--genesis", default="", help="Path to genesis.json with alloc mapping")
-    parser.add_argument("--block-reward", type=int, default=0, help="Optional issuance per block to proposer (toy)")
+    parser.add_argument(
+        "--block-reward",
+        type=int,
+        default=ChainConfig().block_reward,
+        help="Optional issuance per block to proposer (toy)",
+    )
 
     # Demo-only faucet (local state only)
     parser.add_argument("--faucet", action="store_true", help="(Single-node demo) seed balance locally (NOT shared)")
@@ -143,7 +148,7 @@ def run():
     # ---- Wallet / identity ----
     wallet = load_wallet(args.wallet)
     my_priv = wallet["private_key_hex"]
-    my_pub = wallet["public_key_hex"]
+    my_pub = normalize_hex(wallet["public_key_hex"])
     my_addr = normalize_hex(wallet["address"])
     Log.ok(f"Node identity address={my_addr}")
 
@@ -162,6 +167,16 @@ def run():
 
     def persist_state() -> None:
         write_json(chain_path, bc.chain_as_dict())
+
+    def broadcast_tx(tx: Transaction) -> None:
+        if args.no_dedup:
+            return
+        payload = tx.to_dict()
+        for p in peers:
+            try:
+                requests.post(p + "/tx/new", json=payload, timeout=2)
+            except Exception:
+                pass
 
     # -------------------- API --------------------
 
@@ -197,6 +212,7 @@ def run():
         ok, msg = bc.add_tx_to_mempool(tx)
         if ok:
             persist_state()
+            broadcast_tx(tx)
             return jsonify({"ok": True, "msg": "accepted"}), 200
         return jsonify({"ok": False, "msg": msg}), 400
 
@@ -217,19 +233,21 @@ def run():
             value=value,
             nonce=nonce_val,
             timestamp_ms=utc_ms(),
+            pubkey=my_pub,
             data="",
             signature=None,
         )
 
         digest = hash_msg(canonical_json(tx.payload_dict()))
-        v, r_hex, s_hex = sign_digest_recoverable(my_priv, digest)
-        tx.signature = Signature(v=v, r=r_hex, s=s_hex)
+        r_hex, s_hex = sign_digest(my_priv, digest)
+        tx.signature = Signature(r=r_hex, s=s_hex)
 
         ok, msg = bc.add_tx_to_mempool(tx)
         if not ok:
             return jsonify({"ok": False, "msg": msg}), 400
 
         persist_state()
+        broadcast_tx(tx)
         return jsonify({"ok": True, "msg": "created", "tx": tx.to_dict()}), 200
 
     @app.post("/mine")

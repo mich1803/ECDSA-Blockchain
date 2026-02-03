@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MiniChain User Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>MiniChain User Console</h1>
+        <p>Request a wallet, send transactions, and mine blocks.</p>
+      </div>
+      <div class="status">
+        <span id="node-url">Node: n/a</span>
+        <span id="mempool-size">Mempool: -</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>User Area</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Node connection</h3>
+            <label>
+              Node URL
+              <input id="user-node-url" placeholder="http://127.0.0.1:5001" />
+            </label>
+            <button id="save-user-node">Use node</button>
+            <div id="user-node-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Request a wallet</h3>
+            <label>
+              Wallet name
+              <input id="wallet-name" placeholder="user1.json" />
+            </label>
+            <label>
+              Initial funding request
+              <input id="wallet-amount" type="number" min="0" value="100" />
+            </label>
+            <button id="request-wallet">Request</button>
+            <div id="wallet-request-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Send transaction</h3>
+            <label>
+              Sender wallet
+              <select id="sender-wallet"></select>
+            </label>
+            <label>
+              Recipient address
+              <input id="tx-to" placeholder="40-hex address" />
+            </label>
+            <label>
+              Amount
+              <input id="tx-amount" type="number" min="1" value="1" />
+            </label>
+            <button id="send-tx">Send</button>
+            <div id="tx-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Mining</h3>
+            <p>Pending blocks: <span id="pending-blocks">-</span></p>
+            <button id="mine-block">Mine block</button>
+            <div id="mine-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Wallet balance</h3>
+            <label>
+              Wallet to check
+              <select id="balance-wallet"></select>
+            </label>
+            <button id="check-balance">Refresh balance</button>
+            <div id="balance-result" class="result"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/user.js"></script>
+  </body>
+</html>
