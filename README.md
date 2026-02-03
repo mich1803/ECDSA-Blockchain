@@ -365,6 +365,6 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
 ## Contributors
 
 <a href="https://github.com/mich1803/ECDSA-Blockchain/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mich1803/ECDSA-Blockchain"/>
+  <img src="https://contrib.rocks/image?repo=mich1803/ECDSA-Blockchain&t=1"/>
 </a>
 
