@@ -121,7 +121,7 @@ button:hover {
 .contributors-footer {
   margin: 24px 48px 0;
   padding: 16px;
-  background: #111827;            /* same as .card */
+  background: linear-gradient(120deg, #1e293b, #0f172a);            /* same as .card */
   border: 1px solid #1f2937;      /* same border tone */
   border-radius: 12px;            /* same radius as .card */
   display: flex;
@@ -152,9 +152,6 @@ button:hover {
 .contributors-footer img {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;             /* matches overall softness */
-  border: 1px solid #1f2937;      /* consistent with cards/list rows */
-  background: #0f172a;            /* matches inputs / list-row bg */
   padding: 8px;
 }
 
