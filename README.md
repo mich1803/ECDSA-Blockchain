@@ -19,7 +19,7 @@ The project focuses on four main objectives:
     * Node synchronization
 2.  **Understand ECDSA**:
     * Signing process
-    * Public key recovery
+    * Public key handling
     * The critical role of the nonce $k$
 3.  **Demonstrate real attacks**:
     * Replay Attack
@@ -33,7 +33,7 @@ The project is accompanied by detailed documentation analyzing the algebraic fou
 Key points covered in the report include:
 #### Elliptic Curve Cryptography
 - secp256k1 Curve: The system uses the standard elliptic curve defined by the equation $y^{2}\equiv x^{3}+7 \pmod p$.
-- Public Key Recovery: To optimize space, the public key $Q$ is not stored in transactions but is instead recovered from the signature $(r, s)$ using the formula $Q=r^{-1}(sR-eG)$. This operation is implemented in the `crypto.py` module.
+- Public Key Transmission: The public key $Q$ is stored directly in each transaction and used to verify the signature (no public-key recovery is performed).
 
 #### Architecture and States
 - Account Model: Unlike UTXO-based systems, this project implements an Account Model where the global state $\Sigma_{t}$ maps each address to its balance and account nonce.
@@ -58,7 +58,7 @@ Key points covered in the report include:
 ├── data/                    # Persistent node state
 │   └── node_<PORT>/state.json
 ├── minichain/               # Core blockchain logic
-│   ├── crypto.py            # ECDSA, signing, recovery
+│   ├── crypto.py            # ECDSA, signing, verification
 │   ├── chain.py             # Blockchain rules
 │   ├── node.py              # HTTP node
 │   └── paths.py             # Wallets management
