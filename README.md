@@ -282,6 +282,8 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 ## 12. Web App (User Console)
 -------------------------------------------------
 
+![User Interface Preview](media/web_preview.png)
+
 The web app provides a **per-node user console**. You run one UI per wallet/node so each operator has their own interface to send transactions, mine blocks, and monitor wallet details.
 
 ### Quick start (full tutorial)
@@ -359,3 +361,10 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
 - Observe real attacks.
 
 - Connect algebra and security.
+
+## Contributors
+
+<a href="https://github.com/mich1803/ECDSA-Blockchain/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mich1803/ECDSA-Blockchain"/>
+</a>
+
