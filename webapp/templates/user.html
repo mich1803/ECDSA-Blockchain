@@ -10,11 +10,11 @@
     <header class="hero">
       <div>
         <h1>MiniChain User Console</h1>
-        <p>Request a wallet, send transactions, and mine blocks.</p>
+        <p>Send transactions, mine blocks, and monitor your wallet.</p>
       </div>
       <div class="status">
         <span id="node-url">Node: n/a</span>
-        <span id="mempool-size">Mempool: -</span>
+        <span id="mempool-size">Pending txs: -</span>
       </div>
     </header>
 
@@ -23,33 +23,7 @@
         <h2>User Area</h2>
         <div class="grid">
           <div class="card">
-            <h3>Node connection</h3>
-            <label>
-              Node URL
-              <input id="user-node-url" placeholder="http://127.0.0.1:5001" />
-            </label>
-            <button id="save-user-node">Use node</button>
-            <div id="user-node-result" class="result"></div>
-          </div>
-          <div class="card">
-            <h3>Request a wallet</h3>
-            <label>
-              Wallet name
-              <input id="wallet-name" placeholder="user1.json" />
-            </label>
-            <label>
-              Initial funding request
-              <input id="wallet-amount" type="number" min="0" value="100" />
-            </label>
-            <button id="request-wallet">Request</button>
-            <div id="wallet-request-result" class="result"></div>
-          </div>
-          <div class="card">
-            <h3>Send transaction</h3>
-            <label>
-              Sender wallet
-              <select id="sender-wallet"></select>
-            </label>
+            <h3>Make Transaction</h3>
             <label>
               Recipient address
               <input id="tx-to" placeholder="40-hex address" />
@@ -62,19 +36,17 @@
             <div id="tx-result" class="result"></div>
           </div>
           <div class="card">
-            <h3>Mining</h3>
-            <p>Pending blocks: <span id="pending-blocks">-</span></p>
+            <h3>Mine Block</h3>
+            <p>Transactions to mine: <span id="pending-blocks">-</span></p>
             <button id="mine-block">Mine block</button>
             <div id="mine-result" class="result"></div>
           </div>
           <div class="card">
-            <h3>Wallet balance</h3>
-            <label>
-              Wallet to check
-              <select id="balance-wallet"></select>
-            </label>
+            <h3>Wallet Overview</h3>
+            <p><strong>Address:</strong> <span id="wallet-address">-</span></p>
+            <p><strong>Public key:</strong> <span id="wallet-pubkey">-</span></p>
+            <p><strong>Balance:</strong> <span id="wallet-balance">-</span></p>
             <button id="check-balance">Refresh balance</button>
-            <div id="balance-result" class="result"></div>
           </div>
         </div>
       </section>

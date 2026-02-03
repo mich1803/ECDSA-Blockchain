@@ -66,7 +66,7 @@ Key points covered in the report include:
 │   ├── run_node_safe.py
 │   ├── run_node_vuln.py
 │   └── demo_scenario.py
-├── webapp/                  # Web UI (user + manager)
+├── webapp/                  # Web UI (per-node user console)
 │   ├── app.py
 │   ├── templates/
 │   └── static/
@@ -279,43 +279,28 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 ```
 
 -------------------------------------------------
-## 12. Web App (User + Manager)
+## 12. Web App (User Console)
 -------------------------------------------------
 
-The web app provides two separate consoles: **manager** and **user**. The manager configures the chain, creates wallets, prepares `genesis.json`, and monitors balances. Each user has a dedicated UI instance (separate port) to send transactions, mine, and check their balance.
+The web app provides a **per-node user console**. You run one UI per wallet/node so each operator has their own interface to send transactions, mine blocks, and monitor wallet details.
 
 ### Quick start (full tutorial)
 
-1. **Create wallets via CLI (optional)**  
-   If you prefer to use the web app to create wallets, you can skip this step.
+1. **Create wallets via CLI**
    ```
    python -m scripts.create_wallet --out walletA.json
    python -m scripts.create_wallet --out walletB.json
    ```
 
-2. **Start the manager console**
+2. **Create the genesis file**
    ```
-   python -m scripts.run_webapp --mode manager --port 8000
+   python -m scripts.create_genesis \
+     --alloc walletA.json:100 \
+     --alloc walletB.json:100 \
+     --alloc walletC.json:100
    ```
-   Open: `http://127.0.0.1:8000`
 
-3. **(Manager) Configure initial settings**
-   In the manager console:
-   - set the `Node URL` (e.g. `http://127.0.0.1:5001`)
-   - set difficulty and mining reward
-   - save the settings
-
-4. **(User) Request a wallet**
-   In the user console:
-   - choose a name (e.g. `user1.json`)
-   - enter the initial funding request
-   - click “Request”
-
-5. **(Manager) Create the genesis**
-   After collecting requests, click “Create genesis”.
-   This writes `genesis.json` with the requested allocations.
-
-6. **Start the nodes**
+3. **Start the nodes**
    In three separate terminals:
    ```
    python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2
@@ -327,33 +312,30 @@ The web app provides two separate consoles: **manager** and **user**. The manage
    python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
    ```
 
-7. **Start a user console for each node/user**
-   Each user (or node operator) should run their own UI on a distinct port:
+4. **Start a user console for each node**
+   Each node operator should run their own UI on a distinct port and point it to their node + wallet:
    ```
-   python -m scripts.run_webapp --mode user --port 8001
+   python -m scripts.run_webapp --port 8001 --node-url http://127.0.0.1:5001 --wallet walletA.json
    ```
    ```
-   python -m scripts.run_webapp --mode user --port 8002
+   python -m scripts.run_webapp --port 8002 --node-url http://127.0.0.1:5002 --wallet walletB.json
    ```
-   In the user console, set the Node URL so each interface points to the intended node.
+   ```
+   python -m scripts.run_webapp --port 8003 --node-url http://127.0.0.1:5003 --wallet walletC.json
+   ```
 
-8. **(User) Send a transaction**
-   - select the sender wallet
+5. **Send a transaction**
    - enter the recipient address
    - enter the amount
    - click “Send”
 
-9. **(User) Mine a block**
+6. **Mine a block**
    - check “Pending blocks”
    - click “Mine block”
 
-10. **(User) Check balance**
-    - select the wallet
-    - click “Refresh balance”
-
-11. **(Manager) Monitor in real time**
-    - “Live balances” shows known wallet balances
-    - “Transaction log” shows recent mined transactions
+7. **Check balance**
+   - click “Refresh balance”
+   - the wallet overview shows address + public key
 
 -------------------------------------------------
 ## 13. Final Notes
