@@ -4,7 +4,7 @@ import requests
 from minichain.storage import read_json
 from minichain.models import Transaction, Signature
 from minichain.utils import utc_ms, canonical_json, Log, normalize_hex, is_address
-from minichain.crypto import sign_digest_recoverable, hash_msg
+from minichain.crypto import sign_digest, hash_msg
 from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 
 
@@ -25,10 +25,13 @@ def main():
         raise SystemExit(f"wallet not found: {wallet_path}")
 
     sender_priv = w["private_key_hex"]
+    sender_pub = normalize_hex(w.get("public_key_hex", ""))
     sender_addr = normalize_hex(w.get("address", ""))
 
     if not is_address(sender_addr):
         raise SystemExit("wallet missing a valid 'address'. Recreate with scripts/create_wallet.py")
+    if not sender_pub:
+        raise SystemExit("wallet missing a valid 'public_key_hex'. Recreate with scripts/create_wallet.py")
 
     to = normalize_hex(args.to)
     if not is_address(to):
@@ -48,13 +51,14 @@ def main():
         value=int(args.amount),
         nonce=int(nonce),
         timestamp_ms=utc_ms(),
+        pubkey=sender_pub,
         data="",
         signature=None,
     )
 
     digest = hash_msg(canonical_json(tx.payload_dict()))
-    v, r_hex, s_hex = sign_digest_recoverable(sender_priv, digest)
-    tx.signature = Signature(v=v, r=r_hex, s=s_hex)
+    r_hex, s_hex = sign_digest(sender_priv, digest)
+    tx.signature = Signature(r=r_hex, s=s_hex)
 
     r = requests.post(base + "/tx/new", json=tx.to_dict(), timeout=5)
     print(r.status_code, r.text)
