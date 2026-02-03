@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MiniChain Web Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>MiniChain Web Console</h1>
+        <p>Gestione utenti e gestore per la blockchain didattica.</p>
+      </div>
+      <div class="status">
+        <span id="node-url">Node: n/d</span>
+        <span id="mempool-size">Mempool: -</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Area Utente</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Richiedi wallet</h3>
+            <label>
+              Nome wallet
+              <input id="wallet-name" placeholder="utente1.json" />
+            </label>
+            <label>
+              Credito iniziale richiesto
+              <input id="wallet-amount" type="number" min="0" value="100" />
+            </label>
+            <button id="request-wallet">Richiedi</button>
+            <div id="wallet-request-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Invia transazione</h3>
+            <label>
+              Wallet mittente
+              <select id="sender-wallet"></select>
+            </label>
+            <label>
+              Destinatario (address)
+              <input id="tx-to" placeholder="indirizzo 40-hex" />
+            </label>
+            <label>
+              Importo
+              <input id="tx-amount" type="number" min="1" value="1" />
+            </label>
+            <button id="send-tx">Invia</button>
+            <div id="tx-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Mining</h3>
+            <p>Blocchi da minare: <span id="pending-blocks">-</span></p>
+            <button id="mine-block">Mina blocco</button>
+            <div id="mine-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Saldo wallet</h3>
+            <label>
+              Wallet da controllare
+              <select id="balance-wallet"></select>
+            </label>
+            <button id="check-balance">Aggiorna saldo</button>
+            <div id="balance-result" class="result"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Area Gestore</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Impostazioni iniziali</h3>
+            <label>
+              Node URL
+              <input id="settings-node" placeholder="http://127.0.0.1:5001" />
+            </label>
+            <label>
+              Difficoltà
+              <input id="settings-difficulty" type="number" min="1" value="2" />
+            </label>
+            <label>
+              Ricompensa mining
+              <input id="settings-reward" type="number" min="0" value="1" />
+            </label>
+            <button id="save-settings">Salva impostazioni</button>
+            <div id="settings-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Richieste wallet</h3>
+            <div id="wallet-requests" class="list"></div>
+            <label>
+              Percorso genesis
+              <input id="genesis-path" value="genesis.json" />
+            </label>
+            <button id="create-genesis">Crea genesis</button>
+            <div id="genesis-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Bilanci in tempo reale</h3>
+            <div id="accounts" class="list"></div>
+          </div>
+          <div class="card">
+            <h3>Log transazioni</h3>
+            <div id="tx-log" class="list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

@@ -19,7 +19,7 @@ The project focuses on four main objectives:
     * Node synchronization
 2.  **Understand ECDSA**:
     * Signing process
-    * Public key recovery
+    * Public key handling
     * The critical role of the nonce $k$
 3.  **Demonstrate real attacks**:
     * Replay Attack
@@ -33,7 +33,7 @@ The project is accompanied by detailed documentation analyzing the algebraic fou
 Key points covered in the report include:
 #### Elliptic Curve Cryptography
 - secp256k1 Curve: The system uses the standard elliptic curve defined by the equation $y^{2}\equiv x^{3}+7 \pmod p$.
-- Public Key Recovery: To optimize space, the public key $Q$ is not stored in transactions but is instead recovered from the signature $(r, s)$ using the formula $Q=r^{-1}(sR-eG)$. This operation is implemented in the `crypto.py` module.
+- Public Key Transmission: The public key $Q$ is stored directly in each transaction and used to verify the signature (no public-key recovery is performed).
 
 #### Architecture and States
 - Account Model: Unlike UTXO-based systems, this project implements an Account Model where the global state $\Sigma_{t}$ maps each address to its balance and account nonce.
@@ -51,23 +51,25 @@ Key points covered in the report include:
 -------------------------------------------------
 ```
 .
-├── wallets/                 # JSON wallets with private keys
-│   ├── walletA.json
-│   ├── walletB.json
-│   └── walletC.json
+├── wallets/                 # JSON wallets with private keys (generated locally, gitignored)
 ├── data/                    # Persistent node state
 │   └── node_<PORT>/state.json
 ├── minichain/               # Core blockchain logic
-│   ├── crypto.py            # ECDSA, signing, recovery
+│   ├── crypto.py            # ECDSA, signing, verification
 │   ├── chain.py             # Blockchain rules
 │   ├── node.py              # HTTP node
 │   └── paths.py             # Wallets management
 ├── scripts/                 # CLI scripts
 │   ├── create_wallet.py
+│   ├── create_genesis.py
 │   ├── send_tx.py
 │   ├── run_node_safe.py
 │   ├── run_node_vuln.py
 │   └── demo_scenario.py
+├── webapp/                  # Web UI (user + manager)
+│   ├── app.py
+│   ├── templates/
+│   └── static/
 ├── attacks/                 # Attack scripts
 │   ├── replay_attack.py
 │   └── weak_nonce/
@@ -100,7 +102,7 @@ pip install -r requirements.txt
 ## 4. Wallet
 -------------------------------------------------
 
-Wallets are saved in the folder: `wallets/`
+Wallets are saved in the folder: `wallets/` (not committed to git).
 
 Each wallet contains:
 - ECDSA private key
@@ -119,7 +121,37 @@ Files are automatically created in `wallets/`.
 
 
 -------------------------------------------------
-## 5. Starting nodes (SAFE)
+## 5. Genesis
+-------------------------------------------------
+
+`genesis.json` is generated locally (not committed to git). You can build it from wallets and allocations:
+
+```
+python -m scripts.create_genesis \
+  --alloc walletA.json:100 \
+  --alloc walletB.json:100 \
+  --alloc walletC.json:100
+```
+
+Or use a JSON mapping (wallet filename -> amount):
+
+```
+python -m scripts.create_genesis --alloc-json alloc.json
+```
+
+Example `alloc.json`:
+
+```json
+{
+  "walletA.json": 100,
+  "walletB.json": 100,
+  "walletC.json": 100
+}
+```
+
+
+-------------------------------------------------
+## 6. Starting nodes (SAFE)
 -------------------------------------------------
 
 Multiple nodes can be started on the same machine using different ports.
@@ -143,7 +175,7 @@ python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis gene
 ```
 
 -------------------------------------------------
-## 6. Normal Transactions
+## 7. Normal Transactions
 -------------------------------------------------
 
 Send a transaction:
@@ -158,7 +190,7 @@ curl.exe -X POST http://127.0.0.1:5001/mine -H "Content-Type: application/json" 
 ```
 
 -------------------------------------------------
-## 7. Automatic Demo Scenario
+## 8. Automatic Demo Scenario
 -------------------------------------------------
 
 Simulates:
@@ -173,7 +205,7 @@ python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127
 
 # ATTACKS
 -------------------------------------------------
-## 8. Replay Attack
+## 9. Replay Attack
 -------------------------------------------------
 
 ### Description:
@@ -210,7 +242,7 @@ The same transaction is applied multiple times, causing unauthorized repeated tr
 
 
 -------------------------------------------------
-## 9. ECDSA WEAK NONCE – Reuse
+## 10. ECDSA WEAK NONCE – Reuse
 -------------------------------------------------
 
 ### Description:
@@ -229,7 +261,7 @@ python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonc
 ```
 
 -------------------------------------------------
-## 10. ECDSA WEAK NONCE – Linear
+## 11. ECDSA WEAK NONCE – Linear
 -------------------------------------------------
 
 ### Description:
@@ -247,7 +279,74 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 ```
 
 -------------------------------------------------
-## 11. Final Notes
+## 12. Web App (User + Manager)
+-------------------------------------------------
+
+La web app fornisce due viste: **utente** e **gestore**. Il gestore crea i wallet richiesti, prepara il `genesis.json`, imposta i parametri iniziali e monitora i saldi. L’utente può inviare transazioni, minare e controllare il saldo.
+
+### Avvio rapido (tutorial completo)
+
+1. **Crea i wallet da CLI (opzionale)**  
+   Se preferisci usare la web app per creare i wallet, puoi saltare questo passaggio.
+   ```
+   python -m scripts.create_wallet --out walletA.json
+   python -m scripts.create_wallet --out walletB.json
+   ```
+
+2. **Avvia la web app**
+   ```
+   python -m scripts.run_webapp --port 8000
+   ```
+   Apri: `http://127.0.0.1:8000`
+
+3. **(Gestore) Imposta i parametri iniziali**
+   Nella sezione “Area Gestore”:
+   - imposta `Node URL` (es. `http://127.0.0.1:5001`)
+   - imposta difficoltà e ricompensa
+   - salva le impostazioni
+
+4. **(Utente) Richiedi un wallet**
+   Nella sezione “Area Utente → Richiedi wallet”:
+   - scegli un nome (es. `utente1.json`)
+   - inserisci il credito iniziale richiesto
+   - clicca “Richiedi”
+
+5. **(Gestore) Crea il genesis**
+   Dopo aver raccolto le richieste, clicca “Crea genesis”.
+   Verrà creato `genesis.json` con gli importi richiesti.
+
+6. **Avvia i nodi**
+   In tre terminali separati:
+   ```
+   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2
+   ```
+   ```
+   python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
+   ```
+   ```
+   python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
+   ```
+
+7. **(Utente) Invia una transazione**
+   - seleziona il wallet mittente
+   - inserisci l’indirizzo del destinatario
+   - inserisci l’importo
+   - clicca “Invia”
+
+8. **(Utente) Mina un blocco**
+   - controlla “Blocchi da minare”
+   - clicca “Mina blocco”
+
+9. **(Utente) Verifica il saldo**
+   - seleziona il wallet
+   - clicca “Aggiorna saldo”
+
+10. **(Gestore) Monitora in tempo reale**
+    - “Bilanci in tempo reale” mostra i saldi dei wallet noti
+    - “Log transazioni” mostra le ultime transazioni minate
+
+-------------------------------------------------
+## 13. Final Notes
 -------------------------------------------------
 
 ### WARNINGS:
