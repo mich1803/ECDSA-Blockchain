@@ -290,6 +290,7 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
    ```
    python -m scripts.create_wallet --out walletA.json
    python -m scripts.create_wallet --out walletB.json
+   python -m scripts.create_wallet --out walletC.json
    ```
 
 2. **Create the genesis file**
