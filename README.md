@@ -51,10 +51,7 @@ Key points covered in the report include:
 -------------------------------------------------
 ```
 .
-├── wallets/                 # JSON wallets with private keys
-│   ├── walletA.json
-│   ├── walletB.json
-│   └── walletC.json
+├── wallets/                 # JSON wallets with private keys (generated locally, gitignored)
 ├── data/                    # Persistent node state
 │   └── node_<PORT>/state.json
 ├── minichain/               # Core blockchain logic
@@ -64,10 +61,15 @@ Key points covered in the report include:
 │   └── paths.py             # Wallets management
 ├── scripts/                 # CLI scripts
 │   ├── create_wallet.py
+│   ├── create_genesis.py
 │   ├── send_tx.py
 │   ├── run_node_safe.py
 │   ├── run_node_vuln.py
 │   └── demo_scenario.py
+├── webapp/                  # Web UI (per-node user console)
+│   ├── app.py
+│   ├── templates/
+│   └── static/
 ├── attacks/                 # Attack scripts
 │   ├── replay_attack.py
 │   └── weak_nonce/
@@ -100,7 +102,7 @@ pip install -r requirements.txt
 ## 4. Wallet
 -------------------------------------------------
 
-Wallets are saved in the folder: `wallets/`
+Wallets are saved in the folder: `wallets/` (not committed to git).
 
 Each wallet contains:
 - ECDSA private key
@@ -119,7 +121,37 @@ Files are automatically created in `wallets/`.
 
 
 -------------------------------------------------
-## 5. Starting nodes (SAFE)
+## 5. Genesis
+-------------------------------------------------
+
+`genesis.json` is generated locally (not committed to git). You can build it from wallets and allocations:
+
+```
+python -m scripts.create_genesis \
+  --alloc walletA.json:100 \
+  --alloc walletB.json:100 \
+  --alloc walletC.json:100
+```
+
+Or use a JSON mapping (wallet filename -> amount):
+
+```
+python -m scripts.create_genesis --alloc-json alloc.json
+```
+
+Example `alloc.json`:
+
+```json
+{
+  "walletA.json": 100,
+  "walletB.json": 100,
+  "walletC.json": 100
+}
+```
+
+
+-------------------------------------------------
+## 6. Starting nodes (SAFE)
 -------------------------------------------------
 
 Multiple nodes can be started on the same machine using different ports.
@@ -143,7 +175,7 @@ python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis gene
 ```
 
 -------------------------------------------------
-## 6. Normal Transactions
+## 7. Normal Transactions
 -------------------------------------------------
 
 Send a transaction:
@@ -158,7 +190,7 @@ curl.exe -X POST http://127.0.0.1:5001/mine -H "Content-Type: application/json" 
 ```
 
 -------------------------------------------------
-## 7. Automatic Demo Scenario
+## 8. Automatic Demo Scenario
 -------------------------------------------------
 
 Simulates:
@@ -173,7 +205,7 @@ python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127
 
 # ATTACKS
 -------------------------------------------------
-## 8. Replay Attack
+## 9. Replay Attack
 -------------------------------------------------
 
 ### Description:
@@ -210,7 +242,7 @@ The same transaction is applied multiple times, causing unauthorized repeated tr
 
 
 -------------------------------------------------
-## 9. ECDSA WEAK NONCE – Reuse
+## 10. ECDSA WEAK NONCE – Reuse
 -------------------------------------------------
 
 ### Description:
@@ -229,7 +261,7 @@ python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonc
 ```
 
 -------------------------------------------------
-## 10. ECDSA WEAK NONCE – Linear
+## 11. ECDSA WEAK NONCE – Linear
 -------------------------------------------------
 
 ### Description:
@@ -247,7 +279,67 @@ python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_non
 ```
 
 -------------------------------------------------
-## 11. Final Notes
+## 12. Web App (User Console)
+-------------------------------------------------
+
+The web app provides a **per-node user console**. You run one UI per wallet/node so each operator has their own interface to send transactions, mine blocks, and monitor wallet details.
+
+### Quick start (full tutorial)
+
+1. **Create wallets via CLI**
+   ```
+   python -m scripts.create_wallet --out walletA.json
+   python -m scripts.create_wallet --out walletB.json
+   python -m scripts.create_wallet --out walletC.json
+   ```
+
+2. **Create the genesis file**
+   ```
+   python -m scripts.create_genesis \
+     --alloc walletA.json:100 \
+     --alloc walletB.json:100 \
+     --alloc walletC.json:100
+   ```
+
+3. **Start the nodes**
+   In three separate terminals:
+   ```
+   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2
+   ```
+   ```
+   python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
+   ```
+   ```
+   python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
+   ```
+
+4. **Start a user console for each node**
+   Each node operator should run their own UI on a distinct port and point it to their node + wallet:
+   ```
+   python -m scripts.run_webapp --port 8001 --node-url http://127.0.0.1:5001 --wallet walletA.json
+   ```
+   ```
+   python -m scripts.run_webapp --port 8002 --node-url http://127.0.0.1:5002 --wallet walletB.json
+   ```
+   ```
+   python -m scripts.run_webapp --port 8003 --node-url http://127.0.0.1:5003 --wallet walletC.json
+   ```
+
+5. **Send a transaction**
+   - enter the recipient address
+   - enter the amount
+   - click “Send”
+
+6. **Mine a block**
+   - check “Pending blocks”
+   - click “Mine block”
+
+7. **Check balance**
+   - click “Refresh balance”
+   - the wallet overview shows address + public key
+
+-------------------------------------------------
+## 13. Final Notes
 -------------------------------------------------
 
 ### WARNINGS:

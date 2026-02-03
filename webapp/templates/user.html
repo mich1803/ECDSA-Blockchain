@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MiniChain User Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>MiniChain User Console</h1>
+        <p>Send transactions, mine blocks, and monitor your wallet.</p>
+      </div>
+      <div class="status">
+        <span id="node-url">Node: n/a</span>
+        <span id="mempool-size">Pending txs: -</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>User Area</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Make Transaction</h3>
+            <label>
+              Recipient address
+              <input id="tx-to" placeholder="40-hex address" />
+            </label>
+            <label>
+              Amount
+              <input id="tx-amount" type="number" min="1" value="1" />
+            </label>
+            <button id="send-tx">Send</button>
+            <div id="tx-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Mine Block</h3>
+            <p>Transactions to mine: <span id="pending-blocks">-</span></p>
+            <button id="mine-block">Mine block</button>
+            <div id="mine-result" class="result"></div>
+          </div>
+          <div class="card">
+            <h3>Wallet Overview</h3>
+            <p><strong>Address:</strong> <span id="wallet-address">-</span></p>
+            <p><strong>Public key:</strong> <span id="wallet-pubkey">-</span></p>
+            <p><strong>Balance:</strong> <span id="wallet-balance">-</span></p>
+            <button id="check-balance">Refresh balance</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/user.js"></script>
+  </body>
+</html>
