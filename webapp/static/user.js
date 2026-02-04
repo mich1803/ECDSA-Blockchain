@@ -51,7 +51,7 @@ async function sendWeakTx() {
   });
   const data = await res.json();
   if (data.ok) {
-    setText("weak-tx-result", "Weak transactions submitted (nonce reuse).");
+    setText("weak-tx-result", "Weak transactions submitted (nonce reuse) and mined once.");
   } else {
     setText("weak-tx-result", data.body || data.msg || "Weak tx failed.");
   }

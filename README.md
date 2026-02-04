@@ -266,7 +266,7 @@ The weak nonce web app provides a red-themed attacker console that scans the cha
 
 7. **Run the experiment**
    - open `http://127.0.0.1:8001`
-   - send a weak transaction from A to B using the red warning button (weak nonce reuse)
+   - send a weak transaction from A to B using the red warning button (weak nonce reuse, auto-mines once)
    - open `http://127.0.0.1:8010`
    - click “Scan & recover” to see the recovered private key and logs
 

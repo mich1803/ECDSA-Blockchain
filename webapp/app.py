@@ -155,28 +155,63 @@ def create_user_app(node_url: str, wallet_name: str, wallets_dir: str, weak_sign
         k0 = int_from_digest(os.urandom(32))
         txs = []
         results = []
-        for i in range(2):
-            tx = Transaction(
-                to=to_addr,
-                value=amount,
-                nonce=nonce + i,
-                timestamp_ms=utc_ms(),
-                pubkey=pubkey,
-                data="",
-                signature=None,
-            )
-            digest = hash_msg(canonical_json(tx.payload_dict()))
-            try:
-                r_hex, s_hex = ecdsa_sign_with_k(wallet["private_key_hex"], digest, k0)
-            except Exception as exc:
-                return jsonify({"ok": False, "msg": f"signing failed: {exc}"}), 400
-            tx.signature = Signature(r=r_hex, s=s_hex)
-            try:
-                resp = requests.post(app.config["NODE_URL"] + "/tx/new", json=tx.to_dict(), timeout=5)
-                results.append({"status": resp.status_code, "body": resp.text})
-            except Exception as exc:
-                results.append({"status": 0, "body": f"submit failed: {exc}"})
-            txs.append(tx.to_dict())
+
+        tx1 = Transaction(
+            to=to_addr,
+            value=amount,
+            nonce=nonce,
+            timestamp_ms=utc_ms(),
+            pubkey=pubkey,
+            data="",
+            signature=None,
+        )
+        digest1 = hash_msg(canonical_json(tx1.payload_dict()))
+        try:
+            r_hex, s_hex = ecdsa_sign_with_k(wallet["private_key_hex"], digest1, k0)
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"signing failed: {exc}"}), 400
+        tx1.signature = Signature(r=r_hex, s=s_hex)
+        try:
+            resp = requests.post(app.config["NODE_URL"] + "/tx/new", json=tx1.to_dict(), timeout=5)
+            results.append({"status": resp.status_code, "body": resp.text})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"submit failed: {exc}"}), 400
+        txs.append(tx1.to_dict())
+
+        try:
+            mine_resp = requests.post(app.config["NODE_URL"] + "/mine", json={}, timeout=30)
+            results.append({"status": mine_resp.status_code, "body": mine_resp.text})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"mining failed: {exc}"}), 400
+
+        try:
+            r = requests.get(f"{app.config['NODE_URL']}/nonce/{sender_addr}", timeout=5)
+            r.raise_for_status()
+            nonce2 = int(r.json()["nonce"])
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"failed to fetch nonce after mining: {exc}"}), 400
+
+        tx2 = Transaction(
+            to=to_addr,
+            value=amount,
+            nonce=nonce2,
+            timestamp_ms=utc_ms(),
+            pubkey=pubkey,
+            data="",
+            signature=None,
+        )
+        digest2 = hash_msg(canonical_json(tx2.payload_dict()))
+        try:
+            r_hex, s_hex = ecdsa_sign_with_k(wallet["private_key_hex"], digest2, k0)
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"signing failed: {exc}"}), 400
+        tx2.signature = Signature(r=r_hex, s=s_hex)
+        try:
+            resp = requests.post(app.config["NODE_URL"] + "/tx/new", json=tx2.to_dict(), timeout=5)
+            results.append({"status": resp.status_code, "body": resp.text})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"submit failed: {exc}"}), 400
+        txs.append(tx2.to_dict())
 
         return jsonify({"ok": True, "results": results, "txs": txs})
 
