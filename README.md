@@ -243,7 +243,7 @@ The weak nonce web app provides a red-themed UI to generate two signatures with 
 
 3. **Start a node**
    ```
-   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "" --difficulty 2
+   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 2
    ```
 
 4. **Run the weak nonce UI**
