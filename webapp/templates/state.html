@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Node State</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>Node State</h1>
+        <p>Snapshot loaded from {{ state_path }}</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="card state-card">
+          {% if error %}
+            <p class="error-text">Failed to load state: {{ error }}</p>
+          {% else %}
+            <pre>{{ state_json | tojson(indent=2) }}</pre>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

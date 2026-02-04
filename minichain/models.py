@@ -8,27 +8,27 @@ from .utils import normalize_hex
 @dataclass
 class Signature:
     """
-    Ethereum-like: (v, r, s) where v is recovery id (0..3 in this toy).
+    ECDSA signature (r, s).
     r, s are 32-byte hex strings.
     """
-    v: int
     r: str
     s: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"v": int(self.v), "r": self.r, "s": self.s}
+        return {"r": self.r, "s": self.s}
 
 
 @dataclass
 class Transaction:
     """
     Ethereum-like transaction (simplified, no fees/gas):
-    - sender is NOT included (recovered from signature)
+    - sender pubkey IS included (no pubkey recovery)
     """
     to: str               # 20-byte address hex (40 chars, no 0x)
     value: int
     nonce: int
     timestamp_ms: int
+    pubkey: str           # compressed secp256k1 pubkey hex
     data: str = ""        # optional hex payload (no 0x)
     signature: Optional[Signature] = None
 
@@ -41,6 +41,7 @@ class Transaction:
             "value": int(self.value),
             "nonce": int(self.nonce),
             "timestamp_ms": int(self.timestamp_ms),
+            "pubkey": normalize_hex(self.pubkey),
             "data": normalize_hex(self.data) if self.data else "",
         }
 
@@ -53,14 +54,15 @@ class Transaction:
     def from_dict(d: Dict[str, Any]) -> "Transaction":
         sig = d.get("signature")
         signature = None
-        if isinstance(sig, dict) and "v" in sig and "r" in sig and "s" in sig:
-            signature = Signature(v=int(sig["v"]), r=sig["r"], s=sig["s"])
+        if isinstance(sig, dict) and "r" in sig and "s" in sig:
+            signature = Signature(r=sig["r"], s=sig["s"])
 
         return Transaction(
             to=d["to"],
             value=int(d["value"]),
             nonce=int(d["nonce"]),
             timestamp_ms=int(d["timestamp_ms"]),
+            pubkey=d.get("pubkey", "") or "",
             data=d.get("data", "") or "",
             signature=signature,
         )

@@ -25,7 +25,7 @@ def patch_blockchain_vuln():
         if not is_address(to):
             return False, "invalid 'to' address", None
 
-        ok, sender, why = self.recover_sender(tx)
+        ok, sender, why = self.verify_sender(tx)
         if not ok:
             return False, why, None
 

@@ -20,7 +20,7 @@ def keccak256(data: bytes) -> bytes:
     """
     Keccak-256 (Ethereum). MUST be consistent across all nodes.
     We intentionally DO NOT fallback to SHA-256 because that would
-    change address derivation and signature recovery across machines.
+    change address derivation and signature verification across machines.
     """
     try:
         from Crypto.Hash import keccak  # type: ignore

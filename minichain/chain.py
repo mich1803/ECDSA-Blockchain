@@ -5,8 +5,8 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 
 from .models import Transaction, Block
-from .utils import canonical_json, sha256_hex, utc_ms, Log, normalize_hex, is_address
-from .crypto import hash_msg, recover_address
+from .utils import canonical_json, sha256_hex, utc_ms, Log, normalize_hex, is_address, is_hex
+from .crypto import hash_msg, verify_digest, pubkey_from_hex, pubkey_to_address
 
 
 @dataclass
@@ -90,20 +90,31 @@ class Blockchain:
     def valid_pow(self, block_hash: str, difficulty: int) -> bool:
         return block_hash.startswith("0" * difficulty)
 
-    # ---------------- TX digest + sender recovery ----------------
+    # ---------------- TX digest + sender verification ----------------
     def tx_digest(self, tx: Transaction) -> bytes:
         payload = canonical_json(tx.payload_dict())
         return hash_msg(payload)
 
-    def recover_sender(self, tx: Transaction) -> Tuple[bool, str, str]:
+    def verify_sender(self, tx: Transaction) -> Tuple[bool, str, str]:
         if tx.signature is None:
             return False, "", "missing signature"
+        pub_hex = normalize_hex(tx.pubkey or "")
+        if not pub_hex:
+            return False, "", "missing sender pubkey"
+        if not is_hex(pub_hex) or len(pub_hex) not in (66, 130):
+            return False, "", "invalid sender pubkey"
+        try:
+            pub = pubkey_from_hex(pub_hex)
+        except Exception as e:
+            return False, "", f"invalid sender pubkey: {e}"
         try:
             digest = self.tx_digest(tx)
-            sender = recover_address(digest, tx.signature.v, tx.signature.r, tx.signature.s)
+            if not verify_digest(pub_hex, digest, tx.signature.r, tx.signature.s):
+                return False, "", "signature verification failed"
+            sender = pubkey_to_address(pub.format(compressed=False))
             return True, sender, "ok"
         except Exception as e:
-            return False, "", f"signature recovery failed: {e}"
+            return False, "", f"signature verification failed: {e}"
 
     # ---------------- TX validation ----------------
     def check_tx_rules(self, tx: Transaction) -> Tuple[bool, str, Optional[str]]:
@@ -114,7 +125,7 @@ class Blockchain:
         if not is_address(to):
             return False, "invalid 'to' address", None
 
-        ok, sender, why = self.recover_sender(tx)
+        ok, sender, why = self.verify_sender(tx)
         if not ok:
             return False, why, None
 
@@ -149,7 +160,7 @@ class Blockchain:
 
         # avoid duplicates by (sender, nonce)
         for t in self.mempool:
-            ok2, s2, _ = self.recover_sender(t)
+            ok2, s2, _ = self.verify_sender(t)
             if ok2 and s2 == sender and t.nonce == tx.nonce:
                 return False, "duplicate tx"
 
@@ -223,13 +234,13 @@ class Blockchain:
         # remove included txs
         included = set()
         for t in blk.transactions:
-            ok_s, sender, _ = self.recover_sender(t)
+            ok_s, sender, _ = self.verify_sender(t)
             if ok_s:
                 included.add((sender, t.nonce, t.timestamp_ms))
 
         new_mempool = []
         for t in self.mempool:
-            ok_s, sender, _ = self.recover_sender(t)
+            ok_s, sender, _ = self.verify_sender(t)
             key = (sender, t.nonce, t.timestamp_ms) if ok_s else ("", t.nonce, t.timestamp_ms)
             if key not in included:
                 new_mempool.append(t)

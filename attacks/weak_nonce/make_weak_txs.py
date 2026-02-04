@@ -10,7 +10,7 @@ from coincurve import PublicKey
 from minichain.storage import read_json
 from minichain.models import Transaction, Signature
 from minichain.utils import utc_ms, canonical_json, normalize_hex, is_address, Log
-from minichain.crypto import hash_msg, pubkey_from_hex, pubkey_to_address, recover_pubkey_uncompressed
+from minichain.crypto import hash_msg, pubkey_from_hex, pubkey_to_address
 from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 
 # secp256k1 curve order n
@@ -29,20 +29,8 @@ def scalar_to_32(x: int) -> bytes:
     return (x % N).to_bytes(32, "big")
 
 
-def find_recovery_id(digest32: bytes, r_hex: str, s_hex: str, expected_addr: str) -> int:
-    for v in range(4):
-        try:
-            rec_un = recover_pubkey_uncompressed(digest32, v, r_hex, s_hex)
-            rec_addr = pubkey_to_address(rec_un)
-            if rec_addr == expected_addr:
-                return v
-        except Exception:
-            continue
-    raise RuntimeError("Could not find a valid recovery id v (0..3).")
-
-
-def ecdsa_sign_with_k(priv_hex: str, digest32: bytes, k: int, expected_addr: str):
-    """Create a valid (v,r,s) ECDSA signature using a chosen nonce k."""
+def ecdsa_sign_with_k(priv_hex: str, digest32: bytes, k: int):
+    """Create a valid (r,s) ECDSA signature using a chosen nonce k."""
     z = int_from_digest(digest32)
     x = int(priv_hex, 16) % N
     k = k % N
@@ -63,8 +51,7 @@ def ecdsa_sign_with_k(priv_hex: str, digest32: bytes, k: int, expected_addr: str
 
     r_hex = r.to_bytes(32, "big").hex()
     s_hex = s.to_bytes(32, "big").hex()
-    v = find_recovery_id(digest32, r_hex, s_hex, expected_addr)
-    return int(v), r_hex, s_hex
+    return r_hex, s_hex
 
 
 def fetch_nonce(node: str, addr: str) -> int:
@@ -132,6 +119,7 @@ def main():
             value=int(args.amount),
             nonce=int(account_nonce),
             timestamp_ms=utc_ms(),
+            pubkey=normalize_hex(w["public_key_hex"]),
             data="",
             signature=None,
         )
@@ -145,8 +133,8 @@ def main():
             if k == 0:
                 k = 1
 
-        v, r_hex, s_hex = ecdsa_sign_with_k(priv, digest, k, sender_addr)
-        tx.signature = Signature(v=v, r=r_hex, s=s_hex)
+        r_hex, s_hex = ecdsa_sign_with_k(priv, digest, k)
+        tx.signature = Signature(r=r_hex, s=s_hex)
 
         sc, txt = send_tx(args.node, tx)
         Log.info(f"Sent tx{i+1}: HTTP {sc} {txt}")
