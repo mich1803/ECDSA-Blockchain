@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weak Nonce Attacker Console</title>
+    <link rel="stylesheet" href="/static/weak_nonce.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>Weak Nonce Attacker Console</h1>
+        <p>Scan the chain for reused nonces and recover the victim's private key.</p>
+      </div>
+      <div class="status">
+        <span id="node-url">Node: n/a</span>
+        <span id="wallet-address">Attacker: -</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Experiment</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Target</h3>
+            <label>
+              Victim address (optional)
+              <input id="target-address" placeholder="40-hex address" />
+            </label>
+            <label>
+              Victim public key (optional)
+              <input id="target-pubkey" placeholder="compressed pubkey hex" />
+            </label>
+            <button id="run-attack">Scan & recover</button>
+            <div id="attack-result" class="result"></div>
+          </div>
+
+          <div class="card">
+            <h3>Recovered Key</h3>
+            <p class="hint">If the victim reused the same nonce k, the private key is exposed.</p>
+            <div class="key-block">
+              <span class="label">Recovered private key</span>
+              <code id="recovered-key">-</code>
+            </div>
+            <div class="key-block">
+              <span class="label">Derived address</span>
+              <code id="derived-address">-</code>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Attack Logs</h3>
+            <div id="log-list" class="list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/weak_nonce.js"></script>
+  </body>
+</html>

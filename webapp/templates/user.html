@@ -33,13 +33,44 @@
               <input id="tx-amount" type="number" min="1" value="1" />
             </label>
             <button id="send-tx">Send</button>
+            {% if weak_signer %}
+            <button id="send-weak-tx" class="danger">
+              ⚠️ Send weak tx (reuse nonce k)
+            </button>
+            <div class="warning-text">
+              Weak signing enabled: this wallet reuses the ECDSA nonce and can be compromised.
+            </div>
+            {% endif %}
             <div id="tx-result" class="result"></div>
+            {% if weak_signer %}
+            <div id="weak-tx-result" class="result"></div>
+            {% endif %}
           </div>
           <div class="card">
             <h3>Mine Block</h3>
             <p>Transactions to mine: <span id="pending-blocks">-</span></p>
             <button id="mine-block">Mine block</button>
+            <button id="toggle-state" class="secondary">View chain state</button>
             <div id="mine-result" class="result"></div>
+            <div id="state-result" class="result"></div>
+            <div id="state-container" class="state-container hidden">
+              <div class="state-section">
+                <h4>Genesis Allocations</h4>
+                <div id="state-genesis" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Chain</h4>
+                <div id="state-chain" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Mempool</h4>
+                <div id="state-mempool" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Accounts</h4>
+                <div id="state-accounts" class="list"></div>
+              </div>
+            </div>
           </div>
           <div class="card">
             <h3>Wallet Overview</h3>

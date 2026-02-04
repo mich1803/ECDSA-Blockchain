@@ -96,6 +96,29 @@ button:hover {
   background: #1d4ed8;
 }
 
+.danger {
+  background: #dc2626;
+}
+
+.danger:hover {
+  background: #b91c1c;
+}
+
+.warning-text {
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+.secondary {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.secondary:hover {
+  background: #1e293b;
+}
+
 .result {
   font-size: 13px;
   color: #94a3b8;
@@ -116,6 +139,37 @@ button:hover {
   border: 1px solid #1f2937;
   border-radius: 6px;
   padding: 8px;
+}
+
+.state-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.state-section {
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 10px;
+  background: #0b1220;
+}
+
+.state-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #cbd5f5;
+}
+
+.state-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.hidden {
+  display: none;
 }
 
 .contributors-footer {
