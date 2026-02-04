@@ -39,7 +39,27 @@
             <h3>Mine Block</h3>
             <p>Transactions to mine: <span id="pending-blocks">-</span></p>
             <button id="mine-block">Mine block</button>
+            <button id="toggle-state" class="secondary">View chain state</button>
             <div id="mine-result" class="result"></div>
+            <div id="state-result" class="result"></div>
+            <div id="state-container" class="state-container hidden">
+              <div class="state-section">
+                <h4>Genesis Allocations</h4>
+                <div id="state-genesis" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Chain</h4>
+                <div id="state-chain" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Mempool</h4>
+                <div id="state-mempool" class="list"></div>
+              </div>
+              <div class="state-section">
+                <h4>Accounts</h4>
+                <div id="state-accounts" class="list"></div>
+              </div>
+            </div>
           </div>
           <div class="card">
             <h3>Wallet Overview</h3>

@@ -110,6 +110,15 @@ def create_user_app(node_url: str, wallet_name: str, wallets_dir: str) -> Flask:
         except Exception as exc:
             return jsonify({"ok": False, "msg": f"balance fetch failed: {exc}"}), 400
 
+    @app.get("/api/state")
+    def api_state():
+        try:
+            r = requests.get(f"{app.config['NODE_URL']}/chain", timeout=5)
+            r.raise_for_status()
+            return jsonify({"ok": True, "state": r.json()})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"state fetch failed: {exc}"}), 200
+
     return app
 
 

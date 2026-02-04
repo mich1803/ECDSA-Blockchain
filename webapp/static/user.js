@@ -60,6 +60,69 @@ async function checkBalance() {
   }
 }
 
+function fillList(containerId, items, emptyText) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-row state-empty";
+    empty.textContent = emptyText;
+    container.appendChild(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "list-row";
+    row.textContent = item;
+    container.appendChild(row);
+  });
+}
+
+async function loadChainState() {
+  const res = await fetch("/api/state");
+  const data = await res.json();
+  if (!data.ok) {
+    setText("state-result", data.msg || "Failed to load chain state.");
+    return;
+  }
+  const stateData = data.state || {};
+  const genesis = Object.entries(stateData.genesis_alloc || {}).map(
+    ([addr, amount]) => `${addr} · ${amount}`
+  );
+  const chain = (stateData.chain || []).map((block) => {
+    const txCount = Array.isArray(block.transactions) ? block.transactions.length : 0;
+    const hashLabel = block.hash ? `${block.hash.slice(0, 12)}...` : "n/a";
+    const proposer = block.proposer ? block.proposer.slice(0, 12) + "..." : "n/a";
+    return `#${block.index} · ${hashLabel} · txs: ${txCount} · diff: ${block.difficulty} · proposer: ${proposer}`;
+  });
+  const mempool = (stateData.mempool || []).map((tx) => {
+    const to = tx.to ? tx.to.slice(0, 12) + "..." : "n/a";
+    return `to: ${to} · value: ${tx.value} · nonce: ${tx.nonce}`;
+  });
+  const accounts = Object.entries(stateData.accounts || {}).map(
+    ([addr, info]) => `${addr} · balance: ${info.balance} · nonce: ${info.nonce}`
+  );
+
+  fillList("state-genesis", genesis, "No genesis allocations.");
+  fillList("state-chain", chain, "No blocks yet.");
+  fillList("state-mempool", mempool, "Mempool is empty.");
+  fillList("state-accounts", accounts, "No accounts loaded.");
+  setText("state-result", "");
+}
+
+async function toggleChainState() {
+  const container = document.getElementById("state-container");
+  const button = document.getElementById("toggle-state");
+  if (container.classList.contains("hidden")) {
+    await loadChainState();
+    container.classList.remove("hidden");
+    button.textContent = "Hide chain state";
+    return;
+  }
+  container.classList.add("hidden");
+  button.textContent = "View chain state";
+}
+
 async function init() {
   await loadInfo();
   await refreshMempool();
@@ -67,6 +130,7 @@ async function init() {
 
   document.getElementById("send-tx").addEventListener("click", sendTx);
   document.getElementById("mine-block").addEventListener("click", mineBlock);
+  document.getElementById("toggle-state").addEventListener("click", toggleChainState);
   document.getElementById("check-balance").addEventListener("click", checkBalance);
 
   setInterval(async () => {
