@@ -3,18 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Weak Nonce Reuse Lab</title>
+    <title>Weak Nonce Attacker Console</title>
     <link rel="stylesheet" href="/static/weak_nonce.css" />
   </head>
   <body>
     <header class="hero">
       <div>
-        <h1>Weak Nonce Reuse Lab</h1>
-        <p>Generate two signatures with the same nonce and recover the private key.</p>
+        <h1>Weak Nonce Attacker Console</h1>
+        <p>Scan the chain for reused nonces and recover the victim's private key.</p>
       </div>
       <div class="status">
         <span id="node-url">Node: n/a</span>
-        <span id="wallet-address">Address: -</span>
+        <span id="wallet-address">Attacker: -</span>
       </div>
     </header>
 
@@ -23,22 +23,22 @@
         <h2>Experiment</h2>
         <div class="grid">
           <div class="card">
-            <h3>Generate Weak Signatures</h3>
+            <h3>Target</h3>
             <label>
-              Recipient address
-              <input id="tx-to" placeholder="40-hex address" />
+              Victim address (optional)
+              <input id="target-address" placeholder="40-hex address" />
             </label>
             <label>
-              Amount
-              <input id="tx-amount" type="number" min="1" value="1" />
+              Victim public key (optional)
+              <input id="target-pubkey" placeholder="compressed pubkey hex" />
             </label>
-            <button id="run-attack">Run reuse attack</button>
+            <button id="run-attack">Scan & recover</button>
             <div id="attack-result" class="result"></div>
           </div>
 
           <div class="card">
             <h3>Recovered Key</h3>
-            <p class="hint">If the nonce is reused, the private key is exposed.</p>
+            <p class="hint">If the victim reused the same nonce k, the private key is exposed.</p>
             <div class="key-block">
               <span class="label">Recovered private key</span>
               <code id="recovered-key">-</code>
@@ -50,8 +50,8 @@
           </div>
 
           <div class="card">
-            <h3>Transactions Sent</h3>
-            <div id="tx-list" class="list"></div>
+            <h3>Attack Logs</h3>
+            <div id="log-list" class="list"></div>
           </div>
         </div>
       </section>

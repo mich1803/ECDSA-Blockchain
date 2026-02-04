@@ -96,6 +96,19 @@ button:hover {
   background: #1d4ed8;
 }
 
+.danger {
+  background: #dc2626;
+}
+
+.danger:hover {
+  background: #b91c1c;
+}
+
+.warning-text {
+  font-size: 12px;
+  color: #fca5a5;
+}
+
 .secondary {
   background: #0f172a;
   border: 1px solid #334155;

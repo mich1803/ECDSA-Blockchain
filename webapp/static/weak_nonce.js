@@ -35,23 +35,25 @@ function formatTx(tx, index) {
 }
 
 async function runAttack() {
-  const to = document.getElementById("tx-to").value.trim();
-  const amount = Number(document.getElementById("tx-amount").value);
-  const res = await fetch("/api/weak-nonce", {
+  const address = document.getElementById("target-address").value.trim();
+  const pubkey = document.getElementById("target-pubkey").value.trim();
+  const res = await fetch("/api/recover", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ to, amount }),
+    body: JSON.stringify({ address, pubkey }),
   });
   const data = await res.json();
   if (!data.ok) {
     setText("attack-result", data.msg || "Attack failed.");
+    fillList("log-list", data.logs || [], "No logs yet.");
     return;
   }
-  setText("attack-result", "Weak signatures generated and sent.");
+  setText("attack-result", "Recovered a key from reused nonce.");
   setText("recovered-key", data.recovered_key);
   setText("derived-address", data.derived_address);
-  const rows = (data.txs || []).map(formatTx);
-  fillList("tx-list", rows, "No transactions generated yet.");
+  const logs = data.logs || [];
+  const txRows = (data.txs || []).map(formatTx);
+  fillList("log-list", [...logs, ...txRows], "No logs yet.");
 }
 
 async function init() {

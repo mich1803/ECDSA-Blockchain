@@ -41,6 +41,23 @@ async function sendTx() {
   await refreshMempool();
 }
 
+async function sendWeakTx() {
+  const to = document.getElementById("tx-to").value.trim();
+  const amount = Number(document.getElementById("tx-amount").value);
+  const res = await fetch("/api/weak-tx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, amount }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    setText("weak-tx-result", "Weak transactions submitted (nonce reuse).");
+  } else {
+    setText("weak-tx-result", data.body || data.msg || "Weak tx failed.");
+  }
+  await refreshMempool();
+}
+
 async function mineBlock() {
   const res = await fetch("/api/mine", {
     method: "POST",
@@ -129,6 +146,10 @@ async function init() {
   await checkBalance();
 
   document.getElementById("send-tx").addEventListener("click", sendTx);
+  const weakButton = document.getElementById("send-weak-tx");
+  if (weakButton) {
+    weakButton.addEventListener("click", sendWeakTx);
+  }
   document.getElementById("mine-block").addEventListener("click", mineBlock);
   document.getElementById("toggle-state").addEventListener("click", toggleChainState);
   document.getElementById("check-balance").addEventListener("click", checkBalance);

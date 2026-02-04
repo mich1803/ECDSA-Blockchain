@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import random
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import requests
-from coincurve import PrivateKey, PublicKey
+from coincurve import PrivateKey
 from flask import Flask, jsonify, render_template, request
 
 from minichain.crypto import hash_msg, pubkey_from_hex, pubkey_to_address
-from minichain.models import Transaction, Signature
+from minichain.models import Transaction
 from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 from minichain.storage import read_json
-from minichain.utils import canonical_json, normalize_hex, utc_ms, is_address, Log
+from minichain.utils import canonical_json, normalize_hex, is_address, Log
 
 N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
@@ -23,43 +22,6 @@ def modinv(a: int, n: int = N) -> int:
 
 def int_from_digest(digest32: bytes) -> int:
     return int.from_bytes(digest32, "big") % N
-
-
-def scalar_to_32(x: int) -> bytes:
-    return (x % N).to_bytes(32, "big")
-
-
-def ecdsa_sign_with_k(priv_hex: str, digest32: bytes, k: int):
-    z = int_from_digest(digest32)
-    x = int(priv_hex, 16) % N
-    k = k % N
-    if k == 0:
-        raise ValueError("k must be non-zero")
-
-    pub_r = PublicKey.from_valid_secret(scalar_to_32(k))
-    uncompressed = pub_r.format(compressed=False)
-    r = int.from_bytes(uncompressed[1:33], "big") % N
-    if r == 0:
-        raise ValueError("r == 0, choose a different k")
-
-    s = (modinv(k) * (z + r * x)) % N
-    if s == 0:
-        raise ValueError("s == 0, choose a different k")
-
-    r_hex = r.to_bytes(32, "big").hex()
-    s_hex = s.to_bytes(32, "big").hex()
-    return r_hex, s_hex
-
-
-def fetch_nonce(node: str, addr: str) -> int:
-    r = requests.get(node.rstrip("/") + f"/nonce/{addr}", timeout=5)
-    r.raise_for_status()
-    return int(r.json()["nonce"])
-
-
-def send_tx(node: str, tx: Transaction):
-    r = requests.post(node.rstrip("/") + "/tx/new", json=tx.to_dict(), timeout=10)
-    return r.status_code, r.text
 
 
 def recover_from_reuse(txs: List[Transaction]) -> int:
@@ -83,6 +45,46 @@ def tx_z_r_s(tx: Transaction):
     r = int(tx.signature.r, 16) % N
     s = int(tx.signature.s, 16) % N
     return z, r, s
+
+
+def collect_txs(state: Dict[str, object]) -> List[Dict[str, object]]:
+    txs: List[Dict[str, object]] = []
+    for blk in state.get("chain", []):
+        txs.extend(blk.get("transactions", []))
+    txs.extend(state.get("mempool", []))
+    return txs
+
+
+def find_reuse_pair(
+    txs: List[Dict[str, object]],
+    target_pubkey: Optional[str],
+    target_address: Optional[str],
+) -> Tuple[Optional[Transaction], Optional[Transaction], List[str]]:
+    logs: List[str] = []
+    grouped: Dict[Tuple[str, int], Transaction] = {}
+
+    for raw in txs:
+        try:
+            tx = Transaction.from_dict(raw)
+        except Exception:
+            continue
+        if not tx.signature or not tx.pubkey:
+            continue
+        pubkey_hex = normalize_hex(tx.pubkey)
+        if target_pubkey and normalize_hex(target_pubkey) != pubkey_hex:
+            continue
+        if target_address:
+            addr = pubkey_to_address(pubkey_from_hex(pubkey_hex).format(compressed=False))
+            if normalize_hex(addr) != normalize_hex(target_address):
+                continue
+        z, r, _ = tx_z_r_s(tx)
+        key = (pubkey_hex, r)
+        if key in grouped:
+            logs.append(f"Found reused r={hex(r)} for pubkey {pubkey_hex[:16]}...")
+            return grouped[key], tx, logs
+        grouped[key] = tx
+        logs.append(f"Scanned tx nonce={tx.nonce} r={hex(r)[:12]}... z={hex(z)[:12]}...")
+    return None, None, logs
 
 
 def create_weak_nonce_app(node_url: str, wallet_name: str, wallets_dir: str) -> Flask:
@@ -118,62 +120,45 @@ def create_weak_nonce_app(node_url: str, wallet_name: str, wallets_dir: str) -> 
             }
         )
 
-    @app.post("/api/weak-nonce")
-    def api_weak_nonce():
+    @app.post("/api/recover")
+    def api_recover():
         payload = request.get_json(force=True)
-        to_addr = normalize_hex(payload.get("to", ""))
-        amount = int(payload.get("amount", 0))
-        if not is_address(to_addr):
-            return jsonify({"ok": False, "msg": "invalid recipient address"}), 400
-        if amount <= 0:
-            return jsonify({"ok": False, "msg": "amount must be > 0"}), 400
-
-        k0 = random.randrange(1, N)
-        results: List[Dict[str, str]] = []
-        txs: List[Transaction] = []
-
-        for i in range(2):
-            try:
-                account_nonce = fetch_nonce(app.config["NODE_URL"], sender_addr)
-            except Exception as exc:
-                return jsonify({"ok": False, "msg": f"failed to fetch nonce: {exc}"}), 400
-
-            tx = Transaction(
-                to=to_addr,
-                value=int(amount),
-                nonce=int(account_nonce),
-                timestamp_ms=utc_ms(),
-                pubkey=normalize_hex(wallet["public_key_hex"]),
-                data="",
-                signature=None,
-            )
-            digest = hash_msg(canonical_json(tx.payload_dict()))
-            try:
-                r_hex, s_hex = ecdsa_sign_with_k(wallet["private_key_hex"], digest, k0)
-            except Exception as exc:
-                return jsonify({"ok": False, "msg": f"signing failed: {exc}"}), 400
-            tx.signature = Signature(r=r_hex, s=s_hex)
-
-            sc, txt = send_tx(app.config["NODE_URL"], tx)
-            results.append({"status": str(sc), "body": txt})
-            txs.append(tx)
+        target_pubkey = normalize_hex(payload.get("pubkey", "")) or None
+        target_address = normalize_hex(payload.get("address", "")) or None
+        if target_address and not is_address(target_address):
+            return jsonify({"ok": False, "msg": "invalid target address"}), 400
 
         try:
-            recovered_int = recover_from_reuse(txs)
+            r = requests.get(f"{app.config['NODE_URL']}/chain", timeout=5)
+            r.raise_for_status()
+            state = r.json()
         except Exception as exc:
-            return jsonify({"ok": False, "msg": f"recover failed: {exc}"}), 200
+            return jsonify({"ok": False, "msg": f"state fetch failed: {exc}"}), 200
+
+        txs = collect_txs(state)
+        tx1, tx2, logs = find_reuse_pair(txs, target_pubkey, target_address)
+        if not tx1 or not tx2:
+            logs.append("No reused nonce pair found yet.")
+            return jsonify({"ok": False, "msg": "no reuse pair found", "logs": logs}), 200
+
+        try:
+            recovered_int = recover_from_reuse([tx1, tx2])
+        except Exception as exc:
+            logs.append(f"Recovery failed: {exc}")
+            return jsonify({"ok": False, "msg": f"recover failed: {exc}", "logs": logs}), 200
 
         recovered_hex = hex(recovered_int)
         priv = PrivateKey(recovered_int.to_bytes(32, "big"))
         derived_addr = pubkey_to_address(priv.public_key.format(compressed=False))
+        logs.append("Recovered private key from reused nonce.")
 
         return jsonify(
             {
                 "ok": True,
-                "results": results,
                 "recovered_key": recovered_hex,
                 "derived_address": derived_addr,
-                "txs": [tx.to_dict() for tx in txs],
+                "logs": logs,
+                "txs": [tx1.to_dict(), tx2.to_dict()],
             }
         )
 
