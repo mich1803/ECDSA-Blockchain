@@ -22,9 +22,7 @@ The project focuses on four main objectives:
     * Public key handling
     * The critical role of the nonce $k$
 3.  **Demonstrate real attacks**:
-    * Replay Attack
     * ECDSA Weak Nonce Attack (nonce reuse)
-    * ECDSA Weak Nonce Attack (linear nonce)
 4.  **Bridge the gap** between linear algebra, cryptography, and protocol security.
 
 ### Theoretical Foundations
@@ -39,12 +37,11 @@ Key points covered in the report include:
 - Account Model: Unlike UTXO-based systems, this project implements an Account Model where the global state $\Sigma_{t}$ maps each address to its balance and account nonce.
 - Nonce Disambiguation: The system distinguishes between three fundamental types of nonces:
   1. Cryptographic Nonce ($k$): The ephemeral scalar used in the ECDSA algorithm; if reused, it leads to private key compromise.
-  2. Account Nonce ($n_{acc}$): A sequential counter used to prevent Replay Attacks.
+  2. Account Nonce ($n_{acc}$): A sequential counter used to prevent duplicate transactions.
   3. Mining Nonce ($n_{pow}$): A variable field in the block header used by miners to solve the Proof-of-Work puzzle.
 
 #### Vulnerability Analysis
-- Linear Cryptanalysis: The report mathematically demonstrates how reusing $k$ for two different messages allows an attacker to set up a system of linear equations in $\mathbb{Z}_n$ to isolate and calculate the private key $d$.
-- Replay Attack: It analyzes how the absence of state constraints (specifically, disabling account nonce verification) allows a mathematically valid signature to be processed multiple times.
+- Nonce reuse analysis: The report demonstrates how reusing $k$ for two different messages allows an attacker to isolate and calculate the private key $d$.
 
 -------------------------------------------------
 ## 2. Repository Structure
@@ -64,14 +61,14 @@ Key points covered in the report include:
 │   ├── create_genesis.py
 │   ├── send_tx.py
 │   ├── run_node_safe.py
-│   ├── run_node_vuln.py
+│   ├── run_weak_nonce_webapp.py
 │   └── demo_scenario.py
 ├── webapp/                  # Web UI (per-node user console)
 │   ├── app.py
+│   ├── weak_nonce_app.py
 │   ├── templates/
 │   └── static/
 ├── attacks/                 # Attack scripts
-│   ├── replay_attack.py
 │   └── weak_nonce/
 │       ├── make_weak_txs.py
 │       └── recover_privkey.py
@@ -205,44 +202,7 @@ python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127
 
 # ATTACKS
 -------------------------------------------------
-## 9. Replay Attack
--------------------------------------------------
-
-### Description:
-A replay attack consists of re-sending an IDENTICAL signed transaction. If the protocol does not protect nonces and duplicates, the same transaction can be accepted multiple times.
-
-In this project, the vulnerable node:
-
-- Does not verify the nonce
-  
-- Does not increment the nonce
-  
-- Accepts duplicates
-
-### Nodo A (vulnerable):
-
-```
-python -m scripts.run_node_vuln --port 5001 --wallet walletA.json --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2 --no-dedup
-```
-
-### Nodo B (attaccante):
-
-```
-python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
-```
-
-### Attack execution:
-
-```
-python -m attacks.replay_attack --nodeA http://127.0.0.1:5001 --nodeB http://127.0.0.1:5002 --amount 5 --replays 5
-```
-
-### Result:
-The same transaction is applied multiple times, causing unauthorized repeated transfers.
-
-
--------------------------------------------------
-## 10. ECDSA WEAK NONCE – Reuse
+## 9. ECDSA WEAK NONCE – Reuse
 -------------------------------------------------
 
 ### Description:
@@ -261,25 +221,43 @@ python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonc
 ```
 
 -------------------------------------------------
-## 11. ECDSA WEAK NONCE – Linear
+## 10. Weak Nonce Web App
 -------------------------------------------------
 
-### Description:
-Nonce generated as: $k = a \cdot z + b \pmod{n}$
+The weak nonce web app provides a red-themed UI to generate two signatures with the same nonce and recover the private key.
 
-With 3 signatures it is possible to solve the system and recover the private key.
+### Quick start
 
-### Generation:
-```
-python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 1 --mode linear --outdir attacks/weak_nonce/out_linear
-```
-### Key Recovery:
-```
-python -m attacks.weak_nonce.recover_privkey --mode linear --tx attacks/weak_nonce/out_linear/tx1.json attacks/weak_nonce/out_linear/tx2.json attacks/weak_nonce/out_linear/tx3.json
-```
+1. **Create wallets**
+   ```
+   python -m scripts.create_wallet --out walletA.json
+   python -m scripts.create_wallet --out walletB.json
+   ```
+
+2. **Create the genesis file**
+   ```
+   python -m scripts.create_genesis \
+     --alloc walletA.json:100 \
+     --alloc walletB.json:100
+   ```
+
+3. **Start a node**
+   ```
+   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --peers "" --difficulty 2
+   ```
+
+4. **Run the weak nonce UI**
+   ```
+   python -m scripts.run_weak_nonce_webapp --port 8010 --node-url http://127.0.0.1:5001 --wallet walletA.json
+   ```
+
+5. **Run the experiment**
+   - open `http://127.0.0.1:8010`
+   - insert the recipient address (walletB)
+   - click “Run reuse attack” to generate signatures and recover the private key
 
 -------------------------------------------------
-## 12. Web App (User Console)
+## 11. Web App (User Console)
 -------------------------------------------------
 
 ![User Interface Preview](media/web_preview.png)
@@ -341,7 +319,7 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
    - the wallet overview shows address + public key
 
 -------------------------------------------------
-## 13. Final Notes
+## 12. Final Notes
 -------------------------------------------------
 
 ### WARNINGS:
@@ -367,4 +345,3 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
 <a href="https://github.com/mich1803/ECDSA-Blockchain/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=mich1803/ECDSA-Blockchain&t=1"/>
 </a>
-

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weak Nonce Reuse Lab</title>
+    <link rel="stylesheet" href="/static/weak_nonce.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>Weak Nonce Reuse Lab</h1>
+        <p>Generate two signatures with the same nonce and recover the private key.</p>
+      </div>
+      <div class="status">
+        <span id="node-url">Node: n/a</span>
+        <span id="wallet-address">Address: -</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Experiment</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Generate Weak Signatures</h3>
+            <label>
+              Recipient address
+              <input id="tx-to" placeholder="40-hex address" />
+            </label>
+            <label>
+              Amount
+              <input id="tx-amount" type="number" min="1" value="1" />
+            </label>
+            <button id="run-attack">Run reuse attack</button>
+            <div id="attack-result" class="result"></div>
+          </div>
+
+          <div class="card">
+            <h3>Recovered Key</h3>
+            <p class="hint">If the nonce is reused, the private key is exposed.</p>
+            <div class="key-block">
+              <span class="label">Recovered private key</span>
+              <code id="recovered-key">-</code>
+            </div>
+            <div class="key-block">
+              <span class="label">Derived address</span>
+              <code id="derived-address">-</code>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Transactions Sent</h3>
+            <div id="tx-list" class="list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/weak_nonce.js"></script>
+  </body>
+</html>

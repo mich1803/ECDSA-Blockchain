@@ -78,9 +78,9 @@ def main():
     p.add_argument("--amount", type=int, default=1)
     p.add_argument(
         "--mode",
-        choices=["reuse", "linear"],
+        choices=["reuse"],
         default="reuse",
-        help="reuse: same k for 2 tx; linear: k=a*z+b for 3 tx",
+        help="reuse: same k for 2 tx",
     )
     p.add_argument("--outdir", default="weak_nonce", help="where to write tx*.json (default: weak_nonce)")
     args = p.parse_args()
@@ -100,16 +100,10 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    count = 2 if args.mode == "reuse" else 3
+    count = 2
 
-    if args.mode == "reuse":
-        k0 = random.randrange(1, N)
-        Log.warn("Using WEAK nonce mode: reuse (same k for 2 signatures)")
-    else:
-        a = random.randrange(1, N)
-        b = random.randrange(1, N)
-        Log.warn("Using WEAK nonce mode: linear (k = a*z + b), will create 3 signatures")
-        Log.info(f"(debug) a={hex(a)} b={hex(b)}")
+    k0 = random.randrange(1, N)
+    Log.warn("Using WEAK nonce mode: reuse (same k for 2 signatures)")
 
     for i in range(count):
         account_nonce = fetch_nonce(args.node, sender_addr)
@@ -125,13 +119,7 @@ def main():
         )
         digest = hash_msg(canonical_json(tx.payload_dict()))
 
-        if args.mode == "reuse":
-            k = k0
-        else:
-            z = int_from_digest(digest)
-            k = (a * z + b) % N
-            if k == 0:
-                k = 1
+        k = k0
 
         r_hex, s_hex = ecdsa_sign_with_k(priv, digest, k)
         tx.signature = Signature(r=r_hex, s=s_hex)
