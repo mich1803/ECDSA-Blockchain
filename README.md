@@ -177,7 +177,7 @@ python -m scripts.run_node_safe --port 5003 --wallet walletC.json --genesis gene
 
 Send a transaction:
 ```
-python -m scripts.send_tx --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET_B> --amount 5
+python -m scripts.send_tx --node http://127.0.0.1:5001 --wallet walletA.json --to <WALLET-B_ADDRESS> --amount 5
 ```
 
 Mine a block:
@@ -200,9 +200,8 @@ python -m scripts.demo_scenario --nodeA http://127.0.0.1:5001 --nodeB http://127
 ```
 
 
-# ATTACKS
 -------------------------------------------------
-## 9. ECDSA WEAK NONCE – Reuse
+## 9. Attack Example: ECDSA WEAK NONCE (Reuse)
 -------------------------------------------------
 
 ### Description:
@@ -220,58 +219,10 @@ python -m attacks.weak_nonce.make_weak_txs --node http://127.0.0.1:5001 --wallet
 python -m attacks.weak_nonce.recover_privkey --mode reuse --tx attacks/weak_nonce/out_reuse/tx1.json attacks/weak_nonce/out_reuse/tx2.json
 ```
 
--------------------------------------------------
-## 10. Weak Nonce Web App (Attacker Console)
--------------------------------------------------
-
-The weak nonce web app provides a red-themed attacker console that scans the chain for reused nonces and recovers the victim's private key.
-
-### Quick start
-
-1. **Create wallets**
-   ```
-   python -m scripts.create_wallet --out walletA.json
-   python -m scripts.create_wallet --out walletB.json
-   ```
-
-2. **Create the genesis file**
-   ```
-   python -m scripts.create_genesis \
-     --alloc walletA.json:100 \
-     --alloc walletB.json:100
-   ```
-
-3. **Start node A (vulnerable signer)**
-   ```
-   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 2
-   ```
-
-4. **Start node B (safe signer)**
-   ```
-   python -m scripts.run_node_safe --port 5002 --wallet walletB.json --genesis genesis.json --difficulty 2
-   ```
-
-5. **Run the blue user consoles**
-   ```
-   python -m scripts.run_webapp --port 8001 --node-url http://127.0.0.1:5001 --wallet walletA.json --weak-signer
-   ```
-   ```
-   python -m scripts.run_webapp --port 8002 --node-url http://127.0.0.1:5002 --wallet walletB.json
-   ```
-
-6. **Run the attacker console (node C)**
-   ```
-   python -m scripts.run_weak_nonce_webapp --port 8010 --node-url http://127.0.0.1:5001 --wallet walletA.json
-   ```
-
-7. **Run the experiment**
-   - open `http://127.0.0.1:8001`
-   - send a weak transaction from A to B using the red warning button (weak nonce reuse, auto-mines once)
-   - open `http://127.0.0.1:8010`
-   - click “Scan & recover” to see the recovered private key and logs
+# Web App Visualization
 
 -------------------------------------------------
-## 11. Web App (User Console)
+## 10. User Console
 -------------------------------------------------
 
 ![User Interface Preview](media/web_preview.png)
@@ -331,6 +282,52 @@ The web app provides a **per-node user console**. You run one UI per wallet/node
 7. **Check balance**
    - click “Refresh balance”
    - the wallet overview shows address + public key
+
+-------------------------------------------------
+## 11. Weak Nonce Web App (Attacker Console)
+-------------------------------------------------
+
+![User Interface Preview](media/att_preview.png)
+
+The weak nonce web app provides a red-themed attacker console that scans the chain for reused nonces and recovers the victim's private key.
+
+### Quick start
+
+If you already created wallets and genesis, skip point 1 and 2.
+
+1. **Create wallets**
+   ```
+   python -m scripts.create_wallet --out walletA.json
+   python -m scripts.create_wallet --out walletB.json
+   ```
+
+2. **Create the genesis file**
+   ```
+   python -m scripts.create_genesis \
+     --alloc walletA.json:100 \
+     --alloc walletB.json:100
+   ```
+
+3. **Start node A (vulnerable signer)**
+   ```
+   python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 2
+   ```
+
+4. **Run blue user console**
+   ```
+   python -m scripts.run_webapp --port 8001 --node-url http://127.0.0.1:5001 --wallet walletA.json --weak-signer
+   ```
+
+5. **Run the attacker console**
+   ```
+   python -m scripts.run_weak_nonce_webapp --port 8010 --node-url http://127.0.0.1:5001 --wallet walletA.json
+   ```
+
+6. **Run the experiment**
+   - open `http://127.0.0.1:8001`
+   - send a weak transaction from A to B (Insert B address) using the red warning button (weak nonce reuse, auto-mines once)
+   - open `http://127.0.0.1:8010`
+   - click “Scan & recover” to see the recovered private key and logs
 
 -------------------------------------------------
 ## 12. Final Notes
