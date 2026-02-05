@@ -86,7 +86,7 @@ Nel progetto:
 \subsection{ECDSA: formula da imparare bene}
 Dato un messaggio con digest\footnote{Il digest è l'impronta hash a lunghezza fissa del messaggio/payload. Nel progetto il digest della tx è ottenuto da JSON canonico e SHA-256.} $z$ (mod $n$), la firma ECDSA usa un nonce crittografico $k$:
 \[
-R=kG\footnote{$R$ è il punto ellittico ottenuto moltiplicando il generatore $G$ per il nonce crittografico $k$. È un punto "temporaneo" della firma: da $R=(x_R,y_R)$ si estrae $r=x_R \bmod n$.},\quad r=x_R\footnote{$x_R$ è la coordinata $x$ del punto ellittico $R=kG$. In ECDSA si usa $r = x_R \bmod n$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n.
+R=kG\footnote{$R$ è il punto ellittico ottenuto moltiplicando il generatore $G$ per il nonce crittografico $k$. È un punto "temporaneo" della firma: da $R=(x_R,y_R)$ si estrae $r=x_R \bmod n$.},\quad r=x_R\footnote{$r$ è la prima componente della firma ECDSA: si ottiene prendendo la coordinata $x$ di $R$ e riducendola modulo $n$. Se $r=0$, la firma non è valida e va rigenerata con un altro nonce $k$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n\footnote{$s$ è la seconda componente della firma ECDSA: combina digest $z$, chiave privata $d$, valore $r$ e inverso di $k$ modulo $n$. Se $s=0$, anche in questo caso la firma va rigenerata.}.
 \]
 
 \paragraph{Punto fondamentale:}
