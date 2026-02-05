@@ -1,0 +1,247 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\geometry{margin=2.5cm}
+
+\title{Report di Studio \\ Progetto ECDSA-Blockchain}
+\author{Materiale di supporto alla presentazione d'esame}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Perché questo report}
+Questo documento non sostituisce le slide della presentazione, ma le rende più facili da studiare.
+L'obiettivo è spiegare con calma, in italiano semplice ma rigoroso, cosa succede:
+\begin{itemize}
+  \item prima dal punto di vista matematico;
+  \item poi dal punto di vista del codice e del protocollo.
+\end{itemize}
+
+\section{Idea generale del progetto}
+Il progetto implementa una blockchain didattica (\emph{toy blockchain}) con:
+\begin{itemize}
+  \item modello ad account (non UTXO\footnote{UTXO significa \emph{Unspent Transaction Output}: nel modello UTXO i fondi sono rappresentati da output non spesi di transazioni precedenti, non da un saldo unico per account come in questo progetto.}),
+  \item firme ECDSA su curva secp256k1,
+  \item mining PoW semplificato,
+  \item attacco dimostrativo \emph{weak nonce reuse}.
+\end{itemize}
+
+\noindent
+L'idea chiave da ricordare è questa:\\
+\textbf{una transazione può essere valida come protocollo, ma la firma può essere stata prodotta in modo vulnerabile.}
+
+\section{Fondamenti matematici minimi}
+\subsection{Curva ellittica e chiavi}
+Si lavora nel campo finito $\mathbb{F}_p$\footnote{Un campo finito $\mathbb{F}_p$ (con $p$ primo) è l'insieme $\{0,1,\dots,p-1\}$ con somma e prodotto modulo $p$, dove ogni elemento non nullo ha inverso moltiplicativo.} sulla curva secp256k1:
+\[
+E: y^2 \equiv x^3 + 7 \pmod p.
+\]
+Sono fissati:
+\begin{itemize}
+  \item un punto generatore $G$\footnote{Su secp256k1, $G$ è un parametro pubblico standard fissato dalla specifica della curva: è il punto base da cui si generano tutte le chiavi pubbliche come multipli scalari.},
+  \item un ordine primo $n$\footnote{$n$ è l'ordine del sottogruppo generato da $G$, anch'esso fissato dalla specifica secp256k1. In pratica: dopo $n$ somme di $G$, si torna all'elemento neutro; i calcoli ECDSA avvengono modulo $n$.}.
+\end{itemize}
+
+La chiave privata è un intero
+\[
+d \in \{1,\dots,n-1\},
+\]
+mentre la chiave pubblica è
+\[
+Q=dG.
+\]
+
+\subsection{Address}
+L'indirizzo non è la chiave pubblica intera: è un identificatore derivato.
+Nel progetto:
+\begin{enumerate}
+  \item si prende la pubkey non compressa,
+  \item si applica Keccak-256\footnote{Keccak-256 è una funzione hash crittografica (famiglia sponge) che trasforma input di lunghezza arbitraria in 256 bit pseudo-casuali. Piccole variazioni dell'input cambiano drasticamente l'output; è usata in Ethereum per derivare gli address.},
+  \item si tengono gli ultimi 20 byte.
+\end{enumerate}
+
+\subsection{ECDSA: formula da imparare bene}
+Dato un messaggio con digest\footnote{Un digest è l'impronta hash del messaggio: una rappresentazione a lunghezza fissa ottenuta con una funzione hash (qui SHA-256 sul payload canonico).} $z$ (mod $n$), la firma ECDSA usa un nonce crittografico $k$:
+\[
+R=kG,\quad r=x_R\footnote{$x_R$ è la coordinata $x$ del punto ellittico $R=kG$. In ECDSA si prende questa coordinata e la si riduce modulo $n$ per ottenere $r$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n.
+\]
+
+\paragraph{Punto fondamentale:}
+$k$ deve essere segreto e diverso ad ogni firma.
+Se $k$ viene riusato per due messaggi diversi, la chiave privata $d$ può essere recuperata.
+
+\section{I tre nonce (da non confondere mai)}
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item \textbf{Nonce crittografico $k$}: usato internamente in ECDSA.
+  \item \textbf{Nonce account $n_{acc}$}: contatore transazioni dell'account nella blockchain.
+  \item \textbf{Nonce mining $n_{pow}$}: valore che il miner varia per trovare un hash valido.
+\end{enumerate}
+
+\noindent
+Confondere questi tre nonce è l'errore più comune durante l'esposizione orale.
+
+\section{Esperimento 1: Transazioni (spiegazione semplice)}
+\subsection{Passo A -- Creazione wallet A, B, C}
+Un wallet contiene:
+\begin{itemize}
+  \item \texttt{private\_key\_hex} (segreta),
+  \item \texttt{public\_key\_hex},
+  \item \texttt{address}.
+\end{itemize}
+
+\textbf{Interpretazione corretta:}
+nel wallet non ci sono ``monete''; c'è la capacità crittografica di autorizzare movimenti di fondi associati all'address.
+
+\subsection{Passo B -- Genesis}
+Il file \texttt{genesis.json} definisce l'allocazione iniziale:
+\[
+\Sigma_0: \text{address}\mapsto (\text{balance},\text{nonce}=0).
+\]
+
+Questo è fondamentale per avere uno stato iniziale condiviso e deterministico tra i nodi.
+
+\subsection{Passo C -- Avvio nodi A, B, C}
+Ogni nodo mantiene:
+\begin{itemize}
+  \item chain locale,
+  \item mempool locale,
+  \item stato account locale.
+\end{itemize}
+
+I peer servono a propagare transazioni e blocchi.
+
+\subsection{Passo D -- Creazione transazione}
+Quando A invia a B:
+\begin{enumerate}
+  \item si legge il nonce account corrente di A,
+  \item si costruisce il payload della tx\footnote{Il payload di una transazione è l'insieme dei campi firmati (es. destinatario, valore, nonce account, timestamp, pubkey, data), serializzati in forma canonica e senza firma.},
+  \item si calcola il digest,
+  \item si firma ECDSA,
+  \item il nodo valida firma, nonce e saldo,
+  \item se tutto ok, la tx entra in mempool.
+\end{enumerate}
+
+\paragraph{Intuizione rapida:}
+La firma dimostra \emph{chi} ha autorizzato; le regole di protocollo decidono \emph{se} la transazione è accettabile.
+
+\subsection{Passo E -- Mining}
+Il miner prende tx dalla mempool e prova nonce di PoW finché l'hash del blocco rispetta la difficoltà\footnote{Vuol dire: varia ripetutamente il campo nonce nel blocco, ricalcola l'hash e controlla se soddisfa la regola di difficoltà (es. prefisso con un certo numero di zeri). È una ricerca per tentativi.}.
+Dopo il mining:
+\begin{itemize}
+  \item il blocco viene validato,
+  \item le tx vengono applicate allo stato,
+  \item il nonce account del mittente aumenta,
+  \item la mempool si svuota delle tx incluse.
+\end{itemize}
+
+\paragraph{Significato matematico di \texttt{difficulty}}
+Se la difficulty è $d$, il blocco è valido solo se l'hash SHA-256 dell'header inizia con almeno $d$ zeri esadecimali.
+Assumendo output hash uniformi:
+\[
+\Pr[\text{successo in un tentativo}] \approx 16^{-d},
+\qquad
+\mathbb{E}[\text{tentativi}] \approx 16^d.
+\]
+Con default $d=2$ servono in media circa $256$ tentativi; con $d=3$ circa $4096$.
+
+\paragraph{Cosa succede se cambiamo difficulty}
+\begin{itemize}
+  \item Se la aumentiamo: mining più lento, blocchi meno frequenti, demo più realistica ma più lunga.
+  \item Se la diminuiamo: mining molto veloce, demo rapida ma PoW meno significativo.
+  \item $d=2$ è un compromesso didattico: si vede il meccanismo senza tempi troppo lunghi.
+\end{itemize}
+
+\subsection{Passo F -- Visualizzazione state}
+Lo state serve a leggere in modo trasparente:
+\begin{itemize}
+  \item saldi,
+  \item nonce account,
+  \item blocchi già confermati,
+  \item transazioni in attesa.
+\end{itemize}
+
+\section{Esperimento 2: Attacco Weak Nonce Reuse}
+\subsection{Setup}
+Si riusano wallet e genesis dell'esperimento 1, ma si azzerano gli state locali.
+Così cambiamo solo la parte ``vulnerabile'' della firma, mantenendo il resto uguale.
+
+\subsection{Perché il riuso di $k$ rompe ECDSA}
+Per due firme con stesso $k$ (quindi stesso $r$):
+\[
+s_1 = k^{-1}(z_1 + rd), \qquad s_2 = k^{-1}(z_2 + rd).
+\]
+Sottraendo:
+\[
+k = (z_1-z_2)(s_1-s_2)^{-1}\bmod n.
+\]
+Poi:
+\[
+d = (s_1k-z_1)r^{-1}\bmod n.
+\]
+
+\noindent
+Quindi con due firme basta algebra modulare elementare per recuperare la private key.
+
+\subsection{Cosa fa il bottone rosso ``weak tx''}
+Nel flusso implementato:
+\begin{enumerate}
+  \item genera un valore $k_0$,
+  \item crea e invia tx1 firmata con $k_0$,
+  \item mina subito una volta,
+  \item crea e invia tx2 firmata ancora con $k_0$.
+\end{enumerate}
+
+\textbf{Dettaglio importante per la demo:}
+serve minare una seconda volta per includere tx2 on-chain in modo pulito.
+
+\subsection{Cosa fa la web app rossa (attaccante)}
+\begin{enumerate}
+  \item legge chain e mempool,
+  \item cerca coppie di tx con stessa pubkey e stesso $r$,
+  \item se trova la coppia, applica le formule,
+  \item mostra private key recuperata e address derivato.
+\end{enumerate}
+
+\section{Domande d'esame probabili (con risposta breve)}
+\subsection*{1) Perché il nonce account non evita questo attacco?}
+Perché il nonce account regola ordine/unicità delle tx nel protocollo, ma non protegge la qualità del nonce crittografico in ECDSA.
+
+\subsection*{2) Perché due tx ``valide'' possono essere insicure?}
+Perché ``valida'' significa che rispettano regole locali (firma verificata, saldo, nonce account corretto), non che l'implementazione della firma sia robusta contro attacchi futuri.
+
+\subsection*{3) Contromisure reali?}
+Nonce deterministico (RFC6979), librerie ben testate, audit crittografici, monitoraggio di pattern anomali nelle firme (es. collisioni su $r$).
+
+\section{Come usare questo report per studiare}
+Metodo consigliato:
+\begin{enumerate}
+  \item ripetere ad alta voce ogni sezione in 2--3 minuti,
+  \item per ogni passaggio dire prima ``matematica'', poi ``codice'',
+  \item fare una prova completa con demo live e fermarsi su eventuali confusioni tra i nonce.
+\end{enumerate}
+
+\section{Conclusione}
+Il valore didattico del progetto è che unisce:
+\begin{itemize}
+  \item algebra e aritmetica modulare,
+  \item firme su curve ellittiche,
+  \item logica di una blockchain account-based,
+  \item analisi concreta di vulnerabilità.
+\end{itemize}
+
+\noindent
+Frase finale utile per l'orale:\\
+\textit{``La sicurezza non dipende solo dall'algoritmo ECDSA, ma da come viene implementato: se il nonce $k$ è gestito male, la private key è compromessa.''}
+
+\end{document}
