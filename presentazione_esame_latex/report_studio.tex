@@ -1,0 +1,348 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\geometry{margin=2.5cm}
+
+\title{Report di Studio \\ Progetto ECDSA-Blockchain}
+\author{Materiale di supporto alla presentazione d'esame}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Perché questo report}
+Questo documento non sostituisce le slide della presentazione, ma le rende più facili da studiare.
+L'obiettivo è spiegare con calma, in italiano semplice ma rigoroso, cosa succede:
+\begin{itemize}
+  \item prima dal punto di vista matematico;
+  \item poi dal punto di vista del codice e del protocollo.
+\end{itemize}
+
+\section{Idea generale del progetto}
+Il progetto implementa una blockchain didattica (\emph{toy blockchain}) con:
+\begin{itemize}
+  \item modello ad account (non UTXO\footnote{UTXO significa \emph{Unspent Transaction Output}: i fondi non sono un saldo unico, ma un insieme di output non ancora spesi. In questo progetto invece si usa un saldo per account.}),
+  \item firme ECDSA su curva secp256k1,
+  \item mining PoW semplificato,
+  \item attacco dimostrativo \emph{weak nonce reuse}.
+\end{itemize}
+
+\noindent
+L'idea chiave da ricordare è questa:\\
+\textbf{una transazione può essere valida come protocollo, ma la firma può essere stata prodotta in modo vulnerabile.}
+
+\section{Fondamenti matematici minimi}
+\subsection{Curva ellittica e chiavi}
+Si lavora nel campo finito $\mathbb{F}_p$\footnote{Un campo finito $\mathbb{F}_p$ (con $p$ primo) è l'insieme $\{0,1,\dots,p-1\}$ con somma e prodotto modulo $p$, in cui ogni elemento non nullo ha inverso moltiplicativo.} sulla curva secp256k1:
+\[
+E: y^2 \equiv x^3 + 7 \pmod p.
+\]
+Sono fissati:
+\begin{itemize}
+  \item un punto generatore $G$\footnote{$G$ è fissato dallo standard secp256k1 (SEC2). È il punto base da cui si generano le chiavi pubbliche come multipli scalari.},
+  \item un ordine primo $n$\footnote{$n$ è l'ordine del sottogruppo generato da $G$: è il minimo intero positivo tale che $nG=\mathcal{O}$. Anche questo valore è un parametro standard pubblico.}.
+\end{itemize}
+
+La chiave privata è un intero
+\[
+d \in \{1,\dots,n-1\},
+\]
+mentre la chiave pubblica è
+\[
+Q=dG.
+\]
+
+\paragraph{Chiarimento su ``generatore $Q$'' nel vostro caso}
+Nel linguaggio rigoroso, il \textbf{generatore} della curva è $G$, non $Q$.
+$Q$ è la chiave pubblica del singolo wallet; quindi nel vostro esperimento avete tipicamente
+$Q_A=d_A G$, $Q_B=d_B G$, $Q_C=d_C G$.
+
+\paragraph{Qual è l'ordine $n$ nel caso secp256k1}
+Nel caso reale l'ordine è:
+\[
+n=\texttt{0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141}.
+\]
+Questo valore non si ricalcola a mano in pratica: si prende dallo standard.
+Il ``calcolo'' concettuale è verificare che $nG=\mathcal{O}$ e che nessun intero positivo più piccolo annulli $G$.
+
+\subsection{Address}
+L'indirizzo non è la chiave pubblica intera: è un identificatore derivato.
+Nel progetto:
+\begin{enumerate}
+  \item si prende la pubkey non compressa,
+  \item si applica Keccak-256\footnote{Keccak-256 è una funzione hash crittografica (famiglia sponge) che produce 256 bit. Piccole variazioni dell'input causano output molto diversi. Ethereum usa Keccak per derivare address.},
+  \item si tengono gli ultimi 20 byte.
+\end{enumerate}
+
+\subsection{ECDSA: formula da imparare bene}
+Dato un messaggio con digest\footnote{Il digest è l'impronta hash a lunghezza fissa del messaggio/payload. Nel progetto il digest della tx è ottenuto da JSON canonico e SHA-256.} $z$ (mod $n$), la firma ECDSA usa un nonce crittografico $k$:
+\[
+R=kG,\quad r=x_R\footnote{$x_R$ è la coordinata $x$ del punto ellittico $R=kG$. In ECDSA si usa $r = x_R \bmod n$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n.
+\]
+
+\paragraph{Punto fondamentale:}
+$k$ deve essere segreto e diverso ad ogni firma.
+Se $k$ viene riusato per due messaggi diversi, la chiave privata $d$ può essere recuperata.
+
+\section{I tre nonce (da non confondere mai)}
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item \textbf{Nonce crittografico $k$}: usato internamente in ECDSA.
+  \item \textbf{Nonce account $n_{acc}$}: contatore transazioni dell'account nella blockchain.
+  \item \textbf{Nonce mining $n_{pow}$}: valore che il miner varia per trovare un hash valido.
+\end{enumerate}
+
+\section{Esperimento 1: Transazioni (spiegazione semplice)}
+\subsection{Passo A -- Creazione wallet A, B, C}
+Un wallet contiene:
+\begin{itemize}
+  \item \texttt{private\_key\_hex} (segreta),
+  \item \texttt{public\_key\_hex},
+  \item \texttt{address}.
+\end{itemize}
+
+\subsection{Passo B -- Genesis}
+Il file \texttt{genesis.json} definisce l'allocazione iniziale:
+\[
+\Sigma_0: \text{address}\mapsto (\text{balance},\text{nonce}=0).
+\]
+
+\subsection{Passo C -- Avvio nodi A, B, C}
+Ogni nodo mantiene chain, mempool e stato account locali; i peer propagano tx e blocchi.
+
+\subsection{Passo D -- Creazione transazione}
+Quando A invia a B:
+\begin{enumerate}
+  \item legge il nonce account corrente,
+  \item costruisce il payload\footnote{Payload di tx: campi firmati (to, value, nonce account, timestamp, pubkey, data), serializzati in modo canonico, senza firma.},
+  \item calcola il digest,
+  \item firma ECDSA,
+  \item il nodo valida firma, nonce e saldo,
+  \item se tutto ok, la tx entra in mempool.
+\end{enumerate}
+
+\subsection{Passo E -- Mining}
+Il miner prova nonce di PoW finché l'hash del blocco soddisfa la difficoltà\footnote{Significa: varia il nonce, ricalcola hash e controlla il vincolo di difficoltà; è una ricerca per tentativi.}.
+
+\paragraph{Significato matematico di \texttt{difficulty}}
+Se la difficulty è $d$, l'hash valido deve iniziare con $d$ zeri esadecimali.
+Assumendo hash uniformi:
+\[
+\Pr[\text{successo in un tentativo}] \approx 16^{-d},
+\qquad
+\mathbb{E}[\text{tentativi}] \approx 16^d.
+\]
+Con default $d=2$ servono mediamente circa $256$ tentativi; con $d=3$ circa $4096$.
+
+\paragraph{Cosa succede se cambiamo difficulty}
+\begin{itemize}
+  \item Se la aumentiamo: mining più lento, blocchi meno frequenti.
+  \item Se la diminuiamo: mining molto veloce, PoW meno ``visibile''.
+  \item $d=2$ è un buon compromesso didattico.
+\end{itemize}
+
+\subsection{Passo F -- Visualizzazione state}
+Lo state mostra saldi, nonce account, blocchi confermati e tx pendenti.
+
+\section{Esperimento 2: Attacco Weak Nonce Reuse}
+\subsection{Setup}
+Si riusano wallet e genesis, ma si azzerano gli state locali.
+
+\subsection{Perché il riuso di $k$ rompe ECDSA}
+Per due firme con stesso $k$:
+\[
+s_1 = k^{-1}(z_1 + rd), \qquad s_2 = k^{-1}(z_2 + rd).
+\]
+Sottraendo:
+\[
+k = (z_1-z_2)(s_1-s_2)^{-1}\bmod n,
+\]
+poi:
+\[
+d = (s_1k-z_1)r^{-1}\bmod n.
+\]
+
+\subsection{Cosa fa il bottone rosso ``weak tx''}
+\begin{enumerate}
+  \item genera un $k_0$,
+  \item crea e invia tx1 con $k_0$,
+  \item mina subito una volta,
+  \item crea e invia tx2 ancora con $k_0$.
+\end{enumerate}
+Serve poi un mining aggiuntivo per includere tx2 in chain.
+
+\subsection{Cosa fa la web app rossa}
+Legge chain+mempool, cerca coppie con stessa pubkey e stesso $r$, quindi applica le formule di recovery.
+
+\section{Domande d'esame probabili (con risposta breve)}
+\subsection*{1) Perché il nonce account non evita questo attacco?}
+Perché controlla ordine/unicità di protocollo, non la qualità del nonce crittografico ECDSA.
+
+\subsection*{2) Perché due tx valide possono essere insicure?}
+``Valida'' significa conforme alle regole del nodo; non garantisce implementazione crittografica robusta.
+
+\subsection*{3) Contromisure reali?}
+Nonce deterministico (RFC6979), librerie affidabili, audit e monitoraggio collisioni su $r$.
+
+\section{Come usare questo report per studiare}
+\begin{enumerate}
+  \item ripetere ogni sezione ad alta voce,
+  \item per ogni passaggio dire prima matematica e poi codice,
+  \item fare prova completa con demo live.
+\end{enumerate}
+
+\section{Conclusione}
+La sicurezza di una blockchain dipende sia dal protocollo sia dai dettagli implementativi della firma.
+
+\appendix
+\section{Appendice: esempi numerici in uno spazio piccolo (calcolabili a mano)}
+\textbf{Obiettivo:} fare esercizi rigorosi su carta con numeri piccoli.
+Gli esempi qui sotto imitano la logica del caso reale.
+
+\subsection{Spazio piccolo scelto}
+Consideriamo la curva
+\[
+E: y^2\equiv x^3+2x+2\pmod{17}.
+\]
+Il gruppo $E(\mathbb{F}_{17})$ ha 19 punti (incluso il punto all'infinito), quindi ordine primo 19.
+Scegliamo
+\[
+G=(0,6),\qquad n=19,
+\]
+con $\operatorname{ord}(G)=19$.
+
+\subsection{Esempio numerico: creazione wallet}
+Scegliamo private key
+\[
+d=7.
+\]
+La public key è
+\[
+Q=dG=7G.
+\]
+Con somme successive:
+\[
+2G=(9,1),\ 3G=(6,3),\ 4G=(7,6),\ 5G=(10,11),\ 6G=(3,1),\ 7G=(13,10).
+\]
+Quindi
+\[
+Q=(13,10).
+\]
+Definiamo (solo didattica) un address toy:
+\[
+\mathrm{Addr}_{toy}(x,y)=(x+2y)\bmod 17.
+\]
+Allora
+\[
+\mathrm{Addr}_{toy}(Q)=13+2\cdot 10=33\equiv 16\pmod{17}.
+\]
+Wallet toy:
+\[
+(d,Q,\mathrm{Addr}_{toy})=(7,(13,10),16).
+\]
+
+\subsection{Esempio numerico rigoroso: invio di una transazione}
+Sia il digest toy del payload
+\[
+z_1=11\in\mathbb{Z}_{19}.
+\]
+Scegliamo nonce crittografico
+\[
+k=5.
+\]
+Firma ECDSA toy:
+\begin{enumerate}
+  \item $R=kG=5G=(10,11)$,
+  \item $r=x_R\bmod n=10$,
+  \item $k^{-1}\equiv 4\pmod{19}$,
+  \item
+  \[
+  s=k^{-1}(z_1+rd)\bmod 19
+   =4(11+10\cdot 7)\bmod 19
+   =4(81\bmod 19)
+   =4\cdot 5
+   =20\equiv 1.
+  \]
+\end{enumerate}
+Quindi firma:
+\[
+(r,s)=(10,1).
+\]
+
+\subsection{Esempio numerico rigoroso: mining di un blocco}
+Per calcolo manuale, usiamo hash toy:
+\[
+H_{toy}(\text{header},\nu)=(173+\nu)\bmod 256.
+\]
+Difficulty toy $d=2$: richiediamo hash esadecimale con prefisso \texttt{00}, cioè
+\[
+H_{toy}=0.
+\]
+Risolviamo:
+\[
+173+\nu\equiv 0\pmod{256}
+\Rightarrow \nu\equiv 83\pmod{256}.
+\]
+Il primo nonce valido è
+\[
+\nu=83,
+\]
+con hash
+\[
+H_{toy}=0=\texttt{0x00}.
+\]
+Interpretazione: il miner prova nonce consecutivi finché trova il primo valido.
+
+\subsection{Esempio numerico rigoroso: attacco weak nonce reuse}
+Stessa private key $d=7$, stesso nonce riusato $k=5$, due digest diversi:
+\[
+z_1=11,\qquad z_2=3.
+\]
+Per il primo messaggio: $(r,s_1)=(10,1)$.
+Per il secondo:
+\[
+s_2=4(3+70)\bmod 19=4\cdot 16=64\equiv 7\pmod{19},
+\]
+quindi $(r,s_2)=(10,7)$.
+
+Recovery di $k$:
+\[
+k=(z_1-z_2)(s_1-s_2)^{-1}\bmod 19.
+\]
+Calcoli intermedi:
+\[
+z_1-z_2=8,\quad s_1-s_2=-6\equiv 13,\quad 13^{-1}\equiv 3.
+\]
+Dunque
+\[
+k=8\cdot 3=24\equiv 5\pmod{19}.
+\]
+
+Recovery di $d$:
+\[
+d=(s_1k-z_1)r^{-1}\bmod 19.
+\]
+Calcoli intermedi:
+\[
+s_1k-z_1=5-11=-6\equiv 13,\quad r^{-1}=10^{-1}\equiv 2.
+\]
+Quindi
+\[
+d=13\cdot 2=26\equiv 7\pmod{19},
+\]
+che coincide con la private key reale.
+
+\paragraph{Conclusione dell'appendice}
+In spazio piccolo i passaggi sono completamente verificabili a mano.
+Nel caso reale secp256k1 i numeri sono enormi, ma le stesse formule restano valide.
+
+\end{document}
