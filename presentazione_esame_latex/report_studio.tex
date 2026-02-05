@@ -149,6 +149,25 @@ Con default $d=2$ servono mediamente circa $256$ tentativi; con $d=3$ circa $409
   \item $d=2$ è un buon compromesso didattico.
 \end{itemize}
 
+\paragraph{Cosa fa davvero il miner matematicamente?}
+In questo schema PoW il miner \textbf{non} risolve un sistema lineare/non lineare difficile.
+Fa invece una ricerca per tentativi (\emph{brute force}):
+\begin{enumerate}
+  \item fissa i dati del blocco (header),
+  \item varia il nonce $\nu$,
+  \item calcola l'hash $h=H(\text{header},\nu)$,
+  \item controlla se $h$ soddisfa il vincolo di difficulty.
+\end{enumerate}
+Quindi il ``lavoro'' è probabilistico: ogni tentativo è economico, ma servono molti tentativi
+prima di trovare un hash valido.
+
+\paragraph{La difficulty è solo da toy blockchain o anche reale?}
+La difficulty non è un artificio solo didattico: è un concetto \textbf{standard} dei sistemi PoW reali.
+Anche blockchain reali (storicamente Bitcoin, Ethereum pre-Merge, ecc.) usano un target di difficoltà
+che regola quanto è raro trovare un hash valido.
+Nel vostro progetto la versione è semplificata (prefisso di zeri esadecimali), ma il principio è lo stesso:
+aumentare la difficulty rende più raro il successo per tentativo e quindi aumenta il lavoro medio richiesto.
+
 \subsection{Passo F -- Visualizzazione state}
 Lo state mostra saldi, nonce account, blocchi confermati e tx pendenti.
 
