@@ -173,16 +173,37 @@ python -m scripts.send_tx --node http://127.0.0.1:5001 \
 \textbf{Lato matematico/protocollo:}
 \begin{itemize}
   \item Si costruisce header del blocco con hash precedente, tx, difficoltà, proposer.
+  \item La \textbf{difficulty} (nel progetto default $d=2$) impone quanti zeri esadecimali iniziali deve avere l'hash del blocco.
   \item Si cerca $n_{pow}$ tale che:
   \[
     \mathrm{SHA256}(\text{header}) = h, \quad h \text{ inizia con } d \text{ zeri esadecimali.}
   \]
+  \item Probabilità di successo per tentativo: $\approx 16^{-d}$ (hash uniforme).
+  \item Tentativi attesi: $\approx 16^d$ (con $d=2$, circa $256$ tentativi medi).
   \item Una volta trovato, il blocco è candidato valido PoW.
 \end{itemize}
 \textbf{Lato codice:}
 \begin{itemize}
   \item \texttt{make\_candidate\_block()}, poi \texttt{mine\_block()} (loop su nonce).
   \item \texttt{add\_block()} valida e applica tx aggiornando account e nonce sender.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{Difficulty: cosa succede se la cambiamo?}
+\begin{itemize}
+  \item Se aumentiamo difficulty ($d=3,4,\dots$):
+  \begin{itemize}
+    \item mining più lento (più tentativi),
+    \item più tempo medio tra blocchi,
+    \item demo più realistica ma meno rapida in aula.
+  \end{itemize}
+  \item Se diminuiamo difficulty ($d=1$):
+  \begin{itemize}
+    \item blocchi trovati molto velocemente,
+    \item esperimento rapido ma meno significativo lato PoW.
+  \end{itemize}
+  \item Con default $d=2$ otteniamo un compromesso didattico: blocchi abbastanza veloci ma PoW ancora evidente.
 \end{itemize}
 \end{frame}
 
