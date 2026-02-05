@@ -1,0 +1,308 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{ECDSA Blockchain: Struttura, Esperimenti e Attacco Weak Nonce Reuse}
+\author{Corso di Istituzioni di Algebra e Geometria}
+\date{Canovaccio per presentazione d'esame}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible
+}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Obiettivo della presentazione}
+\textbf{Messaggio centrale:} mostrare come algebra lineare, aritmetica modulare ed ECDSA
+entrino in una blockchain \emph{toy}, fino a una vulnerabilità reale (riuso del nonce crittografico).
+
+\vspace{0.5em}
+\textbf{Roadmap suggerita:}
+\begin{enumerate}
+  \item Introduzione e definizioni iniziali.
+  \item Esperimento \emph{Transazioni} (wallet, genesis, nodi, tx, mining, state).
+  \item Esperimento \emph{Attacco Weak Nonce Reuse} (setup, vulnerabilità, exploit, recovery key).
+  \item Conclusioni: cosa si impara matematicamente e lato sicurezza.
+\end{enumerate}
+\end{frame}
+
+\section{Introduzione e definizioni iniziali}
+
+\begin{frame}{Oggetti matematici e protocollari}
+\begin{itemize}
+  \item Campo finito $\mathbb{F}_p$ con curva secp256k1:
+  \[
+    E: y^2 \equiv x^3 + 7 \pmod p.
+  \]
+  \item Gruppo dei punti con generatore $G$ e ordine primo $n$.
+  \item Chiave privata: $d \in \{1,\dots,n-1\}$.
+  \item Chiave pubblica: $Q = dG$.
+  \item Indirizzo: ultimi 20 byte di $\mathrm{Keccak256}(Q_{\text{uncompressed}}[1:])$.
+  \item Transazione firmata con ECDSA su digest SHA-256 del payload canonico JSON.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Tre nonce da distinguere (slide chiave)}
+\begin{block}{Nonce crittografico $k$}
+Usato nella firma ECDSA. \textbf{Se riusato}, può esporre $d$.
+\end{block}
+\begin{block}{Nonce account $n_{acc}$}
+Contatore per account nella blockchain (anti replay/ordine tx).
+\end{block}
+\begin{block}{Nonce mining $n_{pow}$}
+Valore variabile nel blocco per soddisfare PoW: hash con prefisso di zeri.
+\end{block}
+\end{frame}
+
+\begin{frame}{Firma ECDSA: formule da richiamare all'orale}
+Sia $z$ il digest del messaggio ridotto mod $n$:
+\[
+R = kG, \quad r = x_R \bmod n, \quad
+s = k^{-1}(z + rd) \bmod n.
+\]
+Verifica:
+\[
+u_1 = zs^{-1},\; \nu_2 = rs^{-1},\; X = \nu_1G + \nu_2Q,\; r \stackrel{?}{\equiv} x_X \pmod n.
+\]
+\textbf{Commento didattico:} la sicurezza dipende in modo critico dalla segretezza e unicità di $k$.
+\end{frame}
+
+\section{Esperimento 1: Transazioni}
+
+\begin{frame}{Step 1 -- Creazione wallet A, B, C}
+\textbf{Lato codice:}
+\begin{itemize}
+  \item Script: \texttt{scripts/create\_wallet.py}.
+  \item Usa \texttt{generate\_keypair()} e deriva address da pubkey.
+  \item Ogni file wallet contiene: \texttt{private\_key\_hex}, \texttt{public\_key\_hex}, \texttt{address}.
+\end{itemize}
+
+\textbf{Spiegazione matematica da dire:}
+\begin{itemize}
+  \item In wallet non c'è "denaro", ma una coppia $(d,Q)$ + identificatore address.
+  \item Il possesso di $d$ abilita firma e quindi controllo logico dei fondi associati all'address.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Comandi demo wallet}
+\begin{lstlisting}
+python -m scripts.create_wallet --out walletA.json
+python -m scripts.create_wallet --out walletB.json
+python -m scripts.create_wallet --out walletC.json
+\end{lstlisting}
+Suggerimento orale: mostrare 1 wallet reale e commentare ogni campo.
+\end{frame}
+
+\begin{frame}{Step 2 -- Genesis file}
+\textbf{Lato codice:}
+\begin{itemize}
+  \item Script: \texttt{scripts/create\_genesis.py}.
+  \item Converte wallet $\to$ address e costruisce mappa \texttt{alloc}.
+  \item La chain carica \texttt{genesis\_alloc} e resetta stato account con nonce iniziale 0.
+\end{itemize}
+
+\textbf{Lato matematico/protocollo:}
+\begin{itemize}
+  \item Definisce lo stato iniziale $\Sigma_0: \text{address} \mapsto (balance, nonce)$.
+  \item È il riferimento condiviso per la validazione deterministica tra nodi.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Comando demo genesis}
+\begin{lstlisting}
+python -m scripts.create_genesis \
+  --alloc walletA.json:100 \
+  --alloc walletB.json:100 \
+  --alloc walletC.json:100
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Step 3 -- Avvio nodi A, B, C}
+\begin{lstlisting}
+python -m scripts.run_node_safe --port 5001 --wallet walletA.json \
+  --genesis genesis.json --peers "http://127.0.0.1:5002,http://127.0.0.1:5003" --difficulty 2
+
+python -m scripts.run_node_safe --port 5002 --wallet walletB.json \
+  --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5003" --difficulty 2
+
+python -m scripts.run_node_safe --port 5003 --wallet walletC.json \
+  --genesis genesis.json --peers "http://127.0.0.1:5001,http://127.0.0.1:5002" --difficulty 2
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Step 4 -- Creazione transazione (matematica $\to$ codice)}
+\textbf{Pipeline concettuale:}
+\begin{enumerate}
+  \item Leggo nonce account del sender: deve coincidere con lo stato.
+  \item Costruisco payload canonico.
+  \item Calcolo digest $z = H(payload)$.
+  \item Firmo ECDSA $\Rightarrow (r,s)$.
+  \item Nodo verifica firma + regole (indirizzo, fondi, nonce).
+  \item Se valida, tx entra in mempool e viene propagata ai peer.
+\end{enumerate}
+\textbf{Punto d'esame:} separare bene \emph{autenticità crittografica} (firma) e \emph{validità di protocollo} (nonce/balance).
+\end{frame}
+
+\begin{frame}[fragile]{Comando demo invio transazione}
+\begin{lstlisting}
+python -m scripts.send_tx --node http://127.0.0.1:5001 \
+  --wallet walletA.json --to <ADDRESS_B> --amount 5
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Step 5 -- Mining blocco (matematica $\to$ codice)}
+\textbf{Lato matematico/protocollo:}
+\begin{itemize}
+  \item Si costruisce header del blocco con hash precedente, tx, difficoltà, proposer.
+  \item Si cerca $n_{pow}$ tale che:
+  \[
+    \mathrm{SHA256}(\text{header}) = h, \quad h \text{ inizia con } d \text{ zeri esadecimali.}
+  \]
+  \item Una volta trovato, il blocco è candidato valido PoW.
+\end{itemize}
+\textbf{Lato codice:}
+\begin{itemize}
+  \item \texttt{make\_candidate\_block()}, poi \texttt{mine\_block()} (loop su nonce).
+  \item \texttt{add\_block()} valida e applica tx aggiornando account e nonce sender.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Comando demo mining}
+\begin{lstlisting}
+curl -X POST http://127.0.0.1:5001/mine \
+  -H "Content-Type: application/json" -d "{}"
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Step 6 -- Visualizzazione state}
+Da mostrare in UI e/o endpoint \texttt{/chain}:
+\begin{itemize}
+  \item \texttt{genesis\_alloc}: allocazione iniziale.
+  \item \texttt{chain}: blocchi con tx incluse.
+  \item \texttt{mempool}: tx non ancora minate.
+  \item \texttt{accounts}: stato corrente $(balance, nonce)$ per address.
+\end{itemize}
+\textbf{Messaggio:} lo state è la vera "memoria" economica della blockchain account-based.
+\end{frame}
+
+\section{Esperimento 2: Attacco Weak Nonce Reuse}
+
+\begin{frame}{Step 0 -- Reset e riuso setup}
+\begin{itemize}
+  \item Riutilizzare wallet e genesis dell'esperimento 1.
+  \item Azzerare gli state locali dei nodi (cartella \texttt{data/node\_<port>/state.json}).
+  \item Riavviare nodo A in modalità weak signer dalla web app utente.
+\end{itemize}
+\textbf{Perché è importante:} stesso contesto, si isola la variabile "vulnerabilità nella firma".
+\end{frame}
+
+\begin{frame}{Problema matematico: riuso dello stesso $k$}
+Per due messaggi diversi $z_1, z_2$ firmati con stesso $k$:
+\[
+s_1 = k^{-1}(z_1 + rd), \qquad s_2 = k^{-1}(z_2 + rd).
+\]
+Sottraendo:
+\[
+k = (z_1 - z_2)(s_1 - s_2)^{-1} \bmod n.
+\]
+Poi:
+\[
+d = (s_1k - z_1)r^{-1} \bmod n.
+\]
+\textbf{Conclusione:} due firme con stesso $r$ (quindi stesso $k$) bastano a recuperare la chiave privata.
+\end{frame}
+
+\begin{frame}{Weak transaction dalla web app (codice rosso)}
+\textbf{Cosa fa realmente \texttt{/api/weak-tx}:}
+\begin{enumerate}
+  \item Genera un $k_0$ casuale una sola volta.
+  \item Crea tx1 con nonce account corrente, firma con $k_0$, invia.
+  \item Mina subito un blocco (tx1 viene confermata, nonce account incrementa).
+  \item Crea tx2 con \textbf{nuovo nonce account} ma stesso $k_0$, invia.
+\end{enumerate}
+\textbf{Nota sperimentale cruciale:}
+serve un \textbf{secondo mining manuale} per includere tx2 in chain; altrimenti la coppia può non essere visibile completamente on-chain.
+\end{frame}
+
+\begin{frame}[fragile]{Sequenza consigliata in demo}
+\begin{lstlisting}
+# 1) Avvio nodo + UI blu in weak signer mode
+python -m scripts.run_node_safe --port 5001 --wallet walletA.json --genesis genesis.json --difficulty 2
+python -m scripts.run_webapp --port 8001 --node-url http://127.0.0.1:5001 --wallet walletA.json --weak-signer
+
+# 2) Avvio UI attaccante rossa
+python -m scripts.run_weak_nonce_webapp --port 8010 --node-url http://127.0.0.1:5001 --wallet walletA.json
+
+# 3) Da UI blu: "Send weak tx" (auto mina una volta)
+# 4) Minare ancora una volta manualmente
+curl -X POST http://127.0.0.1:5001/mine -H "Content-Type: application/json" -d "{}"
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Attacco di recovery nella web app rossa}
+\textbf{Pipeline attaccante:}
+\begin{itemize}
+  \item Legge stato chain + mempool via API nodo.
+  \item Scansiona tutte le tx e raggruppa per coppia (pubkey, $r$).
+  \item Se trova due tx con stesso $r$, applica formule di recovery di $k$ e $d$.
+  \item Deriva address dalla private key recuperata e lo mostra in UI.
+\end{itemize}
+\textbf{Cosa sta "detectando":}
+\begin{itemize}
+  \item Evidenza crittografica di nonce reuse: collisione su $r$ per stessa pubkey.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Lettura critica dei risultati}
+Quando l'attacco riesce, discutere:
+\begin{enumerate}
+  \item Perché il protocollo nonce account non protegge dal problema ECDSA?
+  \item Perché due tx valide possono comunque distruggere la confidenzialità di $d$?
+  \item Quali contromisure reali: nonce deterministico RFC6979, audit firme, librerie sicure.
+\end{enumerate}
+\end{frame}
+
+\section{Conclusione}
+
+\begin{frame}{Takeaway per l'esame}
+\begin{itemize}
+  \item Avete collegato algebra modulare, curve ellittiche e sistemi distribuiti.
+  \item Avete mostrato che sicurezza blockchain = protocollo + implementazione crittografica.
+  \item Avete implementato e spiegato un attacco realistico con recupero della private key.
+\end{itemize}
+
+\vspace{0.5em}
+\centering
+\textbf{Frase finale suggerita:} \\
+"In una blockchain, una firma valida non implica necessariamente un sistema sicuro: dipende da \emph{come} la firma viene prodotta."
+\end{frame}
+
+\begin{frame}{Appendice orale (Q\&A rapida)}
+\begin{itemize}
+  \item Differenza fra SHA-256 (digest tx/blocchi) e Keccak-256 (derivazione address).
+  \item Perché in questo progetto la pubkey è inclusa nella tx.
+  \item Differenza fra mempool locale e chain condivisa.
+  \item Effetto della difficoltà PoW sul tempo di mining.
+\end{itemize}
+\end{frame}
+
+\end{document}
