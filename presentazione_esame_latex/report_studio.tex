@@ -43,13 +43,17 @@ L'idea chiave da ricordare è questa:\\
 
 \section{Fondamenti matematici minimi}
 \subsection{Curva ellittica e chiavi}
-Si lavora nel campo finito $\mathbb{F}_p$\footnote{Un campo finito $\mathbb{F}_p$ (con $p$ primo) è l'insieme $\{0,1,\dots,p-1\}$ con somma e prodotto modulo $p$, in cui ogni elemento non nullo ha inverso moltiplicativo.} sulla curva secp256k1:
+Si lavora nel campo finito $\mathbb{F}_p$\footnote{Un campo finito $\mathbb{F}_p$ (con $p$ primo) è l'insieme $\{0,1,\dots,p-1\}$ con somma e prodotto modulo $p$, in cui ogni elemento non nullo ha inverso moltiplicativo.} con
+\[
+p=\texttt{0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F},
+\]
+sulla curva secp256k1:
 \[
 E: y^2 \equiv x^3 + 7 \pmod p.
 \]
 Sono fissati:
 \begin{itemize}
-  \item un punto generatore $G$\footnote{$G$ è fissato dallo standard secp256k1 (SEC2). È il punto base da cui si generano le chiavi pubbliche come multipli scalari.},
+  \item un punto generatore $G$\footnote{$G$ è fissato dallo standard secp256k1 (SEC2). In coordinate non compresse: $x_G=\texttt{79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798}$ e $y_G=\texttt{483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8}$. È il punto base da cui si generano le chiavi pubbliche come multipli scalari.},
   \item un ordine primo $n$\footnote{$n$ è l'ordine del sottogruppo generato da $G$: è il minimo intero positivo tale che $nG=\mathcal{O}$. Anche questo valore è un parametro standard pubblico.}.
 \end{itemize}
 
@@ -61,11 +65,6 @@ mentre la chiave pubblica è
 \[
 Q=dG.
 \]
-
-\paragraph{Chiarimento su ``generatore $Q$'' nel vostro caso}
-Nel linguaggio rigoroso, il \textbf{generatore} della curva è $G$, non $Q$.
-$Q$ è la chiave pubblica del singolo wallet; quindi nel vostro esperimento avete tipicamente
-$Q_A=d_A G$, $Q_B=d_B G$, $Q_C=d_C G$.
 
 \paragraph{Qual è l'ordine $n$ nel caso secp256k1}
 Nel caso reale l'ordine è:
@@ -87,7 +86,7 @@ Nel progetto:
 \subsection{ECDSA: formula da imparare bene}
 Dato un messaggio con digest\footnote{Il digest è l'impronta hash a lunghezza fissa del messaggio/payload. Nel progetto il digest della tx è ottenuto da JSON canonico e SHA-256.} $z$ (mod $n$), la firma ECDSA usa un nonce crittografico $k$:
 \[
-R=kG,\quad r=x_R\footnote{$x_R$ è la coordinata $x$ del punto ellittico $R=kG$. In ECDSA si usa $r = x_R \bmod n$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n.
+R=kG\footnote{$R$ è il punto ellittico ottenuto moltiplicando il generatore $G$ per il nonce crittografico $k$. È un punto "temporaneo" della firma: da $R=(x_R,y_R)$ si estrae $r=x_R \bmod n$.},\quad r=x_R\footnote{$x_R$ è la coordinata $x$ del punto ellittico $R=kG$. In ECDSA si usa $r = x_R \bmod n$.} \bmod n,\quad s=k^{-1}(z+rd)\bmod n.
 \]
 
 \paragraph{Punto fondamentale:}
