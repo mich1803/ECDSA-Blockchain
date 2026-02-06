@@ -1,0 +1,467 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{fontawesome5}
+
+\pgfplotsset{compat=1.18}
+
+\setbeamercolor{block title alerted}{fg=white,bg=cyan!70}
+\setbeamercolor{block body alerted}{fg=black,bg=cyan!10}
+
+% --- Tema grigio per slide esercizi ---
+\definecolor{exercisegray}{RGB}{90,90,90}
+\definecolor{exercisegraylight}{RGB}{235,235,235}
+
+\newenvironment{exerciseFrame}[1]
+{
+  % Salva colori correnti
+  \begingroup
+  \setbeamercolor{frametitle}{fg=white,bg=exercisegray}
+  \setbeamercolor{structure}{fg=exercisegray}
+  \setbeamercolor{itemize item}{fg=exercisegray}
+  \setbeamercolor{block title}{fg=white,bg=exercisegray}
+  \setbeamercolor{block body}{fg=black,bg=exercisegraylight}
+
+  \begin{frame}{#1}
+}
+{
+  \end{frame}
+  \endgroup
+}
+
+
+\title[Implementazione di una Blockchain Didattica]{%
+Implementazione di una Blockchain Didattica: \\
+Struttura, Esperimenti e Possibili Attacchi
+}
+
+\author[M.~Magrini \,\textbullet\, F.~Marrocco \,\textbullet\, L.~V.~Petrarca]{%
+Magrini Michele, Marrocco Francesco, Leo Vincenzo Petrarca \\ \quad \\ Corso di Istituzioni di Algebra e Geometria \\ Laurea Magistrale in Matematica Applicata \\ Università di Roma "La Sapienza"
+}
+
+\date{11 Feb 2026}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible
+}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Obiettivo della presentazione}
+
+\vspace{0.5em}
+\textbf{Indice:}
+\begin{enumerate}
+  \item Introduzione e definizioni iniziali.
+  \item Esperimento \emph{Transazioni} (wallet, genesis, nodi, tx, mining, state).
+  \item Esperimento \emph{Attacco Weak Nonce Reuse} (setup, vulnerabilità, exploit, recovery key).
+\end{enumerate}
+\end{frame}
+
+\section{Introduzione e definizioni iniziali}
+
+\begin{frame}{Definizione della Curva e dei Wallet}
+
+% ---------- PARTE ALTA: COLONNE ----------
+\begin{columns}[T]
+
+\begin{column}{0.65\textwidth}
+\begin{itemize}
+  \item Campo finito $\mathbb{F}_p$ con curva secp256k1\footnotemark[1]:
+  \[
+    E: y^2 \equiv x^3 + 7 \pmod p.
+  \]
+  \item Gruppo dei punti con generatore $G$ e ordine primo $n$\footnotemark[2]
+  \item Chiave privata: $d \in \{1,\dots,n-1\}$.
+  \item Chiave pubblica: $Q = dG$.
+  \item Indirizzo: ultimi 20 byte di $\mathrm{Keccak256}$.
+  \item Transazione firmata con ECDSA con digest SHA-256\footnotemark[3] sul payload\footnotemark[4] JSON della transazione
+\end{itemize}
+\end{column}
+
+\begin{column}{0.35\textwidth}
+\centering
+\begin{tikzpicture}[scale=0.85]
+\begin{axis}[
+  axis lines=middle,
+  xtick=\empty,
+  ytick=\empty,
+  width=\linewidth,
+  height=0.65\textheight,
+  domain=-3.5:3.5,
+  samples=200
+]
+\addplot[blue, thick] {sqrt(x^3 + 7)};
+\addplot[blue, thick] {-sqrt(x^3 + 7)};
+\end{axis}
+\end{tikzpicture}
+
+{\scriptsize Curva reale $y^2 = x^3 + 7$}
+\end{column}
+
+\end{columns}
+
+% ---------- SPAZIO ----------
+\vfill
+
+% ---------- LINEA ----------
+\vspace{0.35em}
+
+% ---------- FOOTNOTE A TUTTA LARGHEZZA ----------
+\scriptsize
+\footnotetext[1]{$p=\texttt{0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F}$.}
+\footnotetext[2]{$n=\texttt{0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141}$.}
+\footnotetext[3]{Keccak256 e SHA-256 sono funzioni hash che mappano input arbitrario in un output fisso da 256 bit.}
+\footnotetext[4]{Il payload è il contenuto informativo della transazione, cioè ciò che si vuole autenticare crittograficamente.}
+
+\end{frame}
+
+
+\section{Esperimento 1: Transazioni}
+
+\begin{frame}{Generazione dei Wallet e dello Stato Iniziale}
+
+\begin{enumerate}
+  \item Generiamo un wallet per ogni utente.
+  \begin{itemize}
+      \item Ogni wallet è una coppia $(d,Q)$ + identificatore address.
+      \item Il possesso di $d$ abilita firma e quindi controllo logico dei fondi associati all'address.
+  \end{itemize}
+  
+  \item Definiamo lo stato iniziale $\Sigma_0: \text{address} \mapsto (balance, nonce)$.
+  \begin{itemize}
+      \item È il riferimento condiviso per la validazione deterministica tra nodi.
+  \end{itemize}
+\end{enumerate}
+
+\vfill
+\begin{center}
+\begin{minipage}{0.7\textwidth}
+\begin{alertblock}{\textbf{\faLaptop\ Implementazione}}
+Generazione del Wallet e dello Stato Iniziale
+\end{alertblock}
+\end{minipage}
+\end{center}
+\end{frame}
+
+
+
+\begin{exerciseFrame}{Esempio della creazione di un Wallet su $\mathbb{F}_{17}$ [E1]}
+
+\small 
+\textbf{Curva ellittica} $E:\; y^2 \equiv x^3 + 2x + 2 \pmod{17}.$
+
+\textbf{Gruppo} $E(\mathbb{F}_{17}) \text{ ha } 19 \text{ punti (incluso } \mathcal{O}\text{)} \Rightarrow n=19.$
+
+\textbf{Generatore scelto:} $G=(0,6), \quad \operatorname{ord}(G)=19.$
+
+\textbf{Chiavi:} $d=7,\quad Q=dG=7G.$
+
+\vspace{0.2em}
+\hrule
+\vspace{0.3em}
+
+Somma e Differenza sono definite come segue:
+
+Per $P\neq Q$:
+$
+\lambda=\frac{y_Q-y_P}{x_Q-x_P}\ (\mathrm{mod}\ 17),\quad
+x_{P+Q}=\lambda^2-x_P-x_Q,\quad
+y_{P+Q}=\lambda(x_P-x_{P+Q})-y_P.
+$
+
+Per $2P$: $\lambda=\frac{3x_P^2+a}{2y_P}\ (\mathrm{mod}\ 17).$
+
+\vspace{0.3em}
+\hrule
+\vspace{0.2em}
+
+Calcolo di $2G$: 
+$\lambda=\frac{3\cdot 0^2+2}{2\cdot 6}=\frac{2}{12}\equiv 2\cdot 12^{-1}\equiv 2\cdot 10\equiv 3\ (\mathrm{mod}\ 17)$
+
+$x_{2G}=3^2-0-0=9,\qquad y_{2G}=3(0-9)-6=-33\equiv 1\ (\mathrm{mod}\ 17) \to 2G=(9,1).$
+
+
+Iterando la somma otteniamo: \quad $7G=(13,10)=Q$.
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+Definiamo una \textbf{funzione di hash} didattica:
+$H(x,y)=x+2y\ (\mathrm{mod}\ 17),\qquad $
+
+Otteniamo $H(Q)=H(13,10)=13+2\cdot 10=33\equiv 16.$
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+Abbiamo quindi generato il nostro \textbf{wallet:}\quad $(d,Q,H(Q))=\bigl(7,(13,10),16\bigr)$.
+\end{exerciseFrame}
+
+
+
+\begin{frame}{Tre nonce da distinguere}
+\begin{block}{Nonce crittografico $k$}
+Usato nella firma ECDSA. \textbf{Se riusato}, può esporre $d$.
+\end{block}
+\begin{block}{Nonce account $n_{acc}$}
+Contatore per account nella blockchain (anti replay/ordine tx).
+\end{block}
+\begin{block}{Nonce mining $n_{pow}$}
+Valore variabile nel blocco per soddisfare PoW: hash con prefisso di zeri.
+\end{block}
+\end{frame}
+
+\begin{frame}{Come si Firma una transazione con ECDSA?}
+Sia $z$ il digest del messaggio ridotto mod $n$, otteniamo la firma come segue:
+\[
+R = kG, \quad r = x_R \bmod n, \quad
+s = k^{-1}(z + rd) \bmod n.
+\]
+
+La verifica controlla che il punto costruito combinando messaggio e chiave pubblica ricostruisca lo stesso valore r prodotto dal firmatario.
+\[
+u_1 = zs^{-1},\; u_2 = rs^{-1},\; X = u_1G + u_2Q
+\]
+dove $X$ è il punto ricostruito in fase di verifica che,
+in caso di firma valida, coincide con $R = kG$.
+
+\vfill
+\hrule
+\vspace{.45em}
+
+La sicurezza dipende in modo critico dalla segretezza e unicità del nonce crittografico ($k$). Vedremo alla fine un possibile attacco se questo nonce viene duplicato.
+\end{frame}
+
+\begin{frame}{Come avviene il Mining di un blocco?}
+\textbf{Lato matematico/protocollo:}
+\begin{itemize}
+  \item Si costruisce header del blocco con hash precedente, tx, difficoltà, proposer.
+  \item La \textbf{difficulty} (nel progetto default $d=2$) impone quanti zeri esadecimali iniziali deve avere l'hash del blocco.
+  \item Si cerca $n_{pow}$ tale che:
+  \[
+    \mathrm{H_{SHA}}(\text{header}, n_{pow}) = h, \quad h \text{ inizia con } d \text{ zeri esadecimali.}
+  \]
+  \item Probabilità di successo per tentativo: $\approx 16^{-d}$ (hash uniforme).
+  \item Tentativi attesi: $\approx 16^d$ (con $d=2$, circa $256$ tentativi medi).
+  \item Una volta trovato, il blocco è candidato valido PoW.
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}{Creazione Transazione e Mining}
+\textbf{Pipeline concettuale:}
+\begin{enumerate}
+  \item Costruisco payload canonico (JSON).
+  \item Calcolo digest $z = H(payload)$.
+  \item Calcolo la firma ECDSA $\Rightarrow (r,s)$.
+  \item \textbf{Autenticità Crittografica}: Nodo verifica firma + regole (indirizzo, fondi, nonce).
+  \item \textbf{Validità di Protocollo}: Se valida, tx entra in mempool e viene propagata ai peer.
+  \item Il miner prende l'intero blocco e cerca l'$n_{pow}$ che verifica la condizione. Se ci riesce viene ricompensato.
+\end{enumerate}
+
+\vfill
+\begin{center}
+\begin{minipage}{0.7\textwidth}
+\begin{alertblock}{\textbf{\faLaptop\ Implementazione}}
+Invio Transazioni e Mining
+\end{alertblock}
+\end{minipage}
+\end{center}
+
+\end{frame}
+
+\begin{exerciseFrame}{Esempio di Firma ECDSA [E2]}
+
+\small
+
+\textbf{Setup (come in E1):}
+
+
+$E:\; y^2 \equiv x^3 + 2x + 2 \pmod{17}, \quad G=(0,6), \quad n=19$
+
+$d=7, \quad Q=(13,10)$
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\textbf{Messaggio:} $z = 11 \in \mathbb{Z}_{19}$ (digest della transazione)
+
+\textbf{Scelta del nonce crittografico:} $k=5$
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\textbf{Calcolo:}\\
+\[
+R = kG = 5G = (10,11) \to r = x_R \bmod n = 10
+\]
+
+\[
+k^{-1} \equiv 5^{-1} \equiv 4 \pmod{19}
+\]
+
+\[
+s = k^{-1}(z + rd) \bmod n = 4(11 + 10\cdot 7) \bmod 19 = 1
+\]
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+Quindi abbiamo la \textbf{Firma ECDSA:} $(r,s) = (10,1)$
+
+
+
+\end{exerciseFrame}
+
+
+
+\section{Esperimento 2: Attacco Weak Nonce Reuse}
+
+\begin{frame}{Problema matematico: riuso dello stesso $k$}
+Per due messaggi diversi $z_1, z_2$ firmati con stesso $k$:
+\[
+s_1 = k^{-1}(z_1 + rd), \qquad s_2 = k^{-1}(z_2 + rd).
+\]
+Sottraendo:
+\[
+k = (z_1 - z_2)(s_1 - s_2)^{-1} \bmod n.
+\]
+Poi:
+\[
+d = (s_1k - z_1)r^{-1} \bmod n.
+\]
+\textbf{Conclusione:} due firme con stesso $r$ (quindi stesso $k$) bastano a recuperare la chiave privata.
+\end{frame}
+
+\begin{frame}{Attacco ad una Weak Transaction}
+\textbf{Pipeline vulnerabile:}
+\begin{enumerate}
+  \item Genera un $k_0$ casuale una sola volta.
+  \item Crea tx1 con nonce account corrente, firma con $k_0$, invia.
+  \item Mina subito un blocco (tx1 viene confermata, nonce account incrementa).
+  \item Crea tx2 con \textbf{nuovo nonce account} ma stesso $k_0$, invia.
+\end{enumerate}
+
+\textbf{Pipeline attaccante:}
+\begin{enumerate}
+  \item Legge stato chain + mempool via API nodo.
+  \item Scansiona tutte le tx e raggruppa per coppia (pubkey, $r$).
+  \item Se trova due tx con stesso $r$, applica formule di recovery di $k$ e $d$.ù
+\end{enumerate}
+
+\vfill
+\begin{center}
+\begin{minipage}{0.7\textwidth}
+\begin{alertblock}{\textbf{\faLaptop\ Implementazione}}
+Attacco ad una Weak Transaction
+\end{alertblock}
+\end{minipage}
+\end{center}
+
+\end{frame}
+
+\begin{exerciseFrame}{Esempio di Riuso del nonce ECDSA (E3)}
+
+\small
+
+\textbf{Scenario (come in E1 e E2):}
+\[
+E:\; y^2 \equiv x^3 + 2x + 2 \pmod{17}, \qquad
+G=(0,6), \qquad n=19
+\]
+\[
+d=7, \qquad Q=(13,10)
+\]
+
+\textbf{Prima transazione:}
+\[
+z_1=11, \quad k=5 \quad \Longrightarrow \quad (r,s_1)=(10,1)
+\]
+
+\textbf{Seconda transazione (nonce duplicato):}
+\[
+z_2=3, \quad k=5 \quad \Longrightarrow \quad (r,s_2)=(10,7)
+\]
+
+\hrule
+\vspace{0.4em}
+
+\textbf{Recovery del nonce:}
+\[
+k = (z_1 - z_2)(s_1 - s_2)^{-1} \bmod n
+\]
+\[
+z_1-z_2 = 8, \quad s_1-s_2 = -6 \equiv 13, \quad 13^{-1}\equiv 3
+\]
+\[
+k = 8 \cdot 3 \bmod 19 = 5
+\]
+
+\textbf{Recovery della chiave privata:}
+\[
+d = (s_1k - z_1) r^{-1} \bmod n
+\]
+\[
+s_1k - z_1 = 5 - 11 = -6 \equiv 13, \quad r^{-1} = 10^{-1} \equiv 2
+\]
+\[
+d = 13 \cdot 2 \bmod 19 = 7
+\]
+
+\begin{alertblock}{Conclusione}
+Il riuso del nonce $k$ in ECDSA consente il \textbf{recupero completo della chiave privata}.
+\end{alertblock}
+
+\end{exerciseFrame}
+
+\begin{frame}{Conclusione}
+
+\vfill
+
+\begin{center}
+{\LARGE \textbf{Grazie per l’attenzione}}
+
+\vspace{1.5cm}
+
+{\large
+Michele Magrini \hspace{1em} (matr. \texttt{2066963})\\[0.4em]
+Francesco Marrocco \hspace{1em} (matr. \texttt{2062223})\\[0.4em]
+Leo Vincenzo Petrarca \hspace{1em} (matr. \texttt{2087113})
+}
+\end{center}
+
+\vfill
+
+\end{frame}
+
+
+
+\end{document}
