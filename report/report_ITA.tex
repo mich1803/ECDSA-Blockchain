@@ -1,0 +1,214 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+\geometry{margin=2.5cm}
+
+\title{Report Accademico \\ Progetto ECDSA-Blockchain}
+\author{Corso di Istituzioni di Algebra e Geometria \\ Laurea Magistrale in Matematica Applicata}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Abstract}
+Questo report descrive in modo rigoroso una blockchain didattica ispirata a Ethereum,
+con particolare attenzione ai fondamenti crittografici (ECDSA su secp256k1),
+alla modellazione dei dati e alle regole di consenso implementate nel codice.
+Viene inoltre analizzato un attacco reale (\emph{weak nonce reuse}) che mostra
+come un errore nell'uso del nonce crittografico comprometta l'intero schema di firma.
+Il documento collega costantemente la teoria al codice: ogni fase (generazione chiavi,
+creazione transazioni, mining, sincronizzazione, attacco) trova un riscontro
+nelle rispettive componenti software.
+
+\section{Obiettivi del progetto}
+Gli obiettivi principali sono quattro:
+\begin{enumerate}
+  \item Comprendere le operazioni fondamentali di una blockchain ad account.
+  \item Studiare la firma ECDSA con particolare enfasi sul ruolo del nonce $k$.
+  \item Dimostrare una vulnerabilità concreta legata al riuso del nonce.
+  \item Collegare algebra lineare, teoria dei gruppi e sicurezza dei protocolli.
+\end{enumerate}
+
+\section{Fondamenti crittografici e curve ellittiche}
+\subsection{Curva secp256k1 e chiavi}
+Si opera sul campo finito $\mathbb{F}_p$ e sulla curva secp256k1:
+\[
+E: y^2 \equiv x^3 + 7 \pmod p.
+\]
+La chiave privata \emph{segreta} è un intero $d \in \{1,\dots,n-1\}$,
+mentre la chiave pubblica è il punto $Q = dG$ sul gruppo generato da $G$.
+Nel codice, la generazione di coppie chiave è affidata a funzioni che producono
+una chiave privata e una pubblica compressa (modulo \texttt{minichain/crypto.py}).
+
+\subsection{Derivazione dell'address}
+L'address non coincide con la chiave pubblica intera, bensì con un identificatore derivato:
+si calcola il Keccak-256 della chiave pubblica non compressa (escluso il byte iniziale),
+poi si prendono gli ultimi 20 byte.
+Questo schema è implementato esplicitamente a livello software
+(modulo \texttt{minichain/crypto.py}, funzione \texttt{pubkey\_to\_address}).
+
+\subsection{Firma ECDSA}
+Dato il digest $z$ del messaggio, ECDSA definisce:
+\[
+R = kG, \quad r = x_R \bmod n, \quad s = k^{-1}(z + rd) \bmod n.
+\]
+La verifica ricostruisce il punto $X = u_1 G + u_2 Q$ con
+$u_1 = zs^{-1}$ e $u_2 = rs^{-1}$.
+In termini implementativi, il digest della transazione è SHA-256 di un JSON canonico
+(modulo \texttt{minichain/utils.py}), e la firma viene prodotta in \texttt{minichain/crypto.py}
+tramite conversioni DER o firme recoverable.
+
+\section{Modello dei dati: transazioni e blocchi}
+\subsection{Transazione}
+La transazione è modellata con un payload deterministico (senza firma) e una firma separata.
+I campi essenziali sono:
+\begin{itemize}
+  \item destinatario \texttt{to},
+  \item valore \texttt{value},
+  \item nonce di account \texttt{nonce},
+  \item timestamp,
+  \item chiave pubblica del mittente,
+  \item eventuali dati opzionali.
+\end{itemize}
+La struttura è definita nel modulo \texttt{minichain/models.py}, dove il metodo
+\texttt{payload\_dict} garantisce la serializzazione deterministica (cruciale per
+la firma e la verifica).
+
+\subsection{Blocco}
+Un blocco contiene un header (indice, timestamp, lista di transazioni, hash precedente,
+difficulty, nonce PoW e proposer) e il proprio hash. Anche questa struttura è definita
+in \texttt{minichain/models.py}. Il metodo \texttt{header\_dict} produce il contenuto
+serializzato che viene poi hashato con SHA-256.
+
+\section{Serializzazione canonica e hashing}
+Il codice impone una serializzazione JSON canonica: chiavi ordinate, separatori compatti,
+UTF-8. Questo elimina ambiguità nella rappresentazione dei dati da firmare.
+La funzione \texttt{canonical\_json} in \texttt{minichain/utils.py} implementa questa regola.
+Il digest di una transazione è ottenuto da SHA-256 del payload serializzato,
+mentre la derivazione dell'address usa Keccak-256, in modo coerente con Ethereum.
+
+\section{Stato globale e regole di validazione}
+\subsection{Account model}
+Il progetto adotta un modello ad account: lo stato globale è una mappa
+\(\Sigma_t: \text{address} \mapsto (\text{balance},\text{nonce})\).
+Questa mappa è mantenuta nel modulo \texttt{minichain/chain.py}.
+
+\subsection{Genesis}
+Il file \texttt{genesis.json} definisce l'allocazione iniziale degli account.
+Il nodo carica l'allocazione e resetta lo stato a partire da essa.
+La creazione del genesis è realizzata dallo script \texttt{scripts/create\_genesis.py},
+che legge wallet e associa saldi iniziali.
+
+\subsection{Validazione di una transazione}
+Le regole principali sono:
+\begin{enumerate}[label=\textbf{R\arabic*.}]
+  \item importo positivo,
+  \item address di destinazione valido,
+  \item firma ECDSA valida e mittente recuperabile,
+  \item nonce esattamente uguale al nonce corrente dell'account,
+  \item saldo sufficiente.
+\end{enumerate}
+Tali regole sono implementate nelle funzioni \texttt{check\_tx\_rules} e
+\texttt{verify\_sender} del modulo \texttt{minichain/chain.py}.
+
+\subsection{Applicazione di una transazione}
+Una transazione valida aggiorna lo stato: decrementa il saldo del mittente,
+accredita il destinatario e incrementa il nonce del mittente. Questo avviene
+nel metodo \texttt{apply\_tx} in \texttt{minichain/chain.py}.
+
+\section{Mining e Proof-of-Work}
+\subsection{Definizione della PoW}
+Il mining consiste nel trovare un nonce $n_{pow}$ tale che l'hash del blocco
+inizi con un prefisso di zeri esadecimali pari alla difficulty.
+Con difficoltà $d$, la probabilità di successo per tentativo è
+$16^{-d}$ e i tentativi attesi sono $16^d$.
+
+\subsection{Algoritmo implementato}
+Nel codice:
+\begin{enumerate}
+  \item si costruisce un blocco candidato con le tx del mempool (\texttt{make\_candidate\_block});
+  \item si tenta la PoW incrementando il nonce (\texttt{mine\_block});
+  \item se il blocco è valido, viene aggiunto e le tx vengono rimosse dal mempool
+  (\texttt{add\_block}).
+\end{enumerate}
+La difficulty e un eventuale reward sono configurabili nel \texttt{ChainConfig}.
+
+\section{Nodo, rete e sincronizzazione}
+\subsection{API REST}
+Il nodo è un servizio Flask che espone API per:
+\begin{itemize}
+  \item informazioni d'identità e stato (\texttt{/identity}, \texttt{/chain}),
+  \item query di bilancio e nonce (\texttt{/balance/<addr>}, \texttt{/nonce/<addr>}),
+  \item invio transazioni (\texttt{/tx/new} e \texttt{/local/make\_tx}),
+  \item mining (\texttt{/mine}),
+  \item propagazione blocchi (\texttt{/block/new}),
+  \item sincronizzazione su catena più lunga (\texttt{/sync}).
+\end{itemize}
+L'implementazione è nel modulo \texttt{minichain/node.py}.
+
+\subsection{Persistenza}
+Ogni nodo persiste la chain e lo stato account in \texttt{data/node\_<PORT>/state.json}.
+La lettura e scrittura atomica sono centralizzate in \texttt{minichain/storage.py}.
+
+\section{Script CLI e strumenti didattici}
+Il progetto include script Python per la gestione completa del ciclo di vita:
+\begin{itemize}
+  \item \texttt{scripts/create\_wallet.py}: genera un wallet (chiavi e address).
+  \item \texttt{scripts/create\_genesis.py}: crea un genesis con allocazioni.
+  \item \texttt{scripts/send\_tx.py}: firma e invia una transazione standard.
+  \item \texttt{scripts/run\_node\_safe.py} (launcher): avvia un nodo con parametri.
+\end{itemize}
+Questi strumenti rendono riproducibile l'esperimento in laboratorio e
+riducono il rumore operativo nella fase di studio.
+
+\section{Attacco \emph{Weak Nonce Reuse}}
+\subsection{Idea matematica}
+Se due firme ECDSA usano lo stesso nonce $k$, condividono lo stesso $r$.
+Con due coppie $(r,s_1)$ e $(r,s_2)$ su messaggi con digest $z_1,z_2$:
+\[
+  k = (z_1 - z_2)(s_1 - s_2)^{-1} \bmod n,
+\]
+\[
+  d = (s_1 k - z_1) r^{-1} \bmod n.
+\]
+Il riuso di $k$ rivela quindi la chiave privata $d$.
+
+\subsection{Implementazione dell'attacco}
+Lo script \texttt{attacks/weak\_nonce/make\_weak\_txs.py} firma due transazioni diverse
+con lo stesso nonce $k$ e le invia al nodo; le transazioni vengono salvate in JSON.
+Lo script \texttt{attacks/weak\_nonce/recover\_privkey.py} carica tali tx,
+ricostruisce $k$ e calcola la chiave privata.
+La stessa logica è integrata nella webapp rossa
+(\texttt{webapp/weak\_nonce\_app.py}), che scansiona chain e mempool
+alla ricerca di firme con lo stesso $r$.
+
+\section{Interfacce web}
+\subsection{Console utente}
+La console web (\texttt{webapp/app.py}) offre un'interfaccia per inviare transazioni,
+minare blocchi e consultare il bilancio. In modalità didattica, è presente
+un pulsante per generare \emph{weak tx}, che riusa deliberatamente il nonce $k$.
+
+\subsection{Console attaccante}
+La console rossa (\texttt{webapp/weak\_nonce\_app.py}) permette di scandire
+lo stato della blockchain e tentare il recupero della chiave privata quando
+si osservano firme con lo stesso $r$.
+
+\section{Conclusioni}
+Il progetto dimostra che una blockchain non è solo un protocollo distribuito,
+ma un'interazione delicata tra algebra, crittografia e ingegneria del software.
+La correttezza delle regole di consenso non è sufficiente se la firma crittografica
+viene implementata in modo vulnerabile. Il caso del nonce riutilizzato mostra
+un attacco deterministico e riproducibile che collega direttamente teoria e pratica.
+
+\end{document}
