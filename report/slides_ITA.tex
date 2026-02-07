@@ -237,63 +237,75 @@ Valore variabile nel blocco per soddisfare PoW: hash con prefisso di zeri.
 \end{block}
 \end{frame}
 
-\begin{frame}{Come si Firma una transazione con ECDSA?}
-Sia $z$ il digest del messaggio ridotto mod $n$, otteniamo la firma come segue:
+\begin{frame}{Transazione come cambiamento di stato autorizzato}
+
+\small
+
+\begin{block}{Idea chiave}
+\textbf{Transazione = messaggio firmato} che autorizza un cambiamento deterministico
+dello \textbf{stato globale}.
+\end{block}
+
+
+\textbf{1) Payload (azione richiesta)}
 \[
-R = kG, \quad r = x_R \bmod n, \quad
-s = k^{-1}(z + rd) \bmod n.
+\{"from": A,\ "to": B,\ "value": 5,\ "nonce": n_{acc}\}
 \]
 
-La verifica controlla che il punto costruito combinando messaggio e chiave pubblica ricostruisca lo stesso valore r prodotto dal firmatario.
+
+\textbf{2) Digest}
+\begin{itemize}
+  \item hash crittografico:
+  \[
+    z = H(\texttt{payload}) \bmod n
+  \]
+\end{itemize}
+
+
+\textbf{3) Effetto}
 \[
-u_1 = zs^{-1},\; u_2 = rs^{-1},\; X = u_1G + u_2Q
+\Sigma \;\longmapsto\; \Sigma'
+\qquad
 \]
-dove $X$ è il punto ricostruito in fase di verifica che,
-in caso di firma valida, coincide con $R = kG$.
+
+\end{frame}
+
+
+\begin{frame}{Firma ECDSA e autorizzazione del cambiamento di stato}
+
+\small
+
+\textbf{1) Firma ECDSA}
+\[
+R = kG, \quad r = x_R \bmod n, \quad
+s = k^{-1}(z + rd) \bmod n
+\]
+\begin{itemize}
+  \item firma $(r,s)$ = contenuto + identità del mittente
+\end{itemize}
+
+
+\textbf{2) Verifica}
+\begin{itemize}
+  \item verifica regole (nonce, fondi, formato)
+  \item verifica firma (chiave pubblica $Q$)
+\end{itemize}
+\[
+u_1 = zs^{-1},\quad u_2 = rs^{-1},\quad
+X = u_1G + u_2Q
+\]
+
+dove $X$ è il punto ricostruito in fase di verifica che, in caso di firma valida, coincide con $R$.
+
+Una transazione valida viene inserita nella \textbf{mempool}
+
 
 \vfill
 \hrule
-\vspace{.45em}
-
-La sicurezza dipende in modo critico dalla segretezza e unicità del nonce crittografico ($k$). Vedremo alla fine un possibile attacco se questo nonce viene duplicato.
-\end{frame}
-
-\begin{frame}{Come avviene il Mining di un blocco?}
-\textbf{Lato matematico/protocollo:}
-\begin{itemize}
-  \item Si costruisce header del blocco con hash precedente, tx, difficoltà, proposer.
-  \item La \textbf{difficulty} (nel progetto default $d=2$) impone quanti zeri esadecimali iniziali deve avere l'hash del blocco.
-  \item Si cerca $n_{pow}$ tale che:
-  \[
-    \mathrm{H_{SHA}}(\text{header}, n_{pow}) = h, \quad h \text{ inizia con } d \text{ zeri esadecimali.}
-  \]
-  \item Probabilità di successo per tentativo: $\approx 16^{-d}$ (hash uniforme).
-  \item Tentativi attesi: $\approx 16^d$ (con $d=2$, circa $256$ tentativi medi).
-  \item Una volta trovato, il blocco è candidato valido PoW.
-\end{itemize}
-
-\end{frame}
 
 
-\begin{frame}{Creazione Transazione e Mining}
-\textbf{Pipeline concettuale:}
-\begin{enumerate}
-  \item Costruisco payload canonico (JSON).
-  \item Calcolo digest $z = H(payload)$.
-  \item Calcolo la firma ECDSA $\Rightarrow (r,s)$.
-  \item \textbf{Autenticità Crittografica}: Nodo verifica firma + regole (indirizzo, fondi, nonce).
-  \item \textbf{Validità di Protocollo}: Se valida, tx entra in mempool e viene propagata ai peer.
-  \item Il miner prende l'intero blocco e cerca l'$n_{pow}$ che verifica la condizione. Se ci riesce viene ricompensato.
-\end{enumerate}
-
-\vfill
-\begin{center}
-\begin{minipage}{0.7\textwidth}
-\begin{alertblock}{\textbf{\faLaptop\ Implementazione}}
-Invio Transazioni e Mining
-\end{alertblock}
-\end{minipage}
-\end{center}
+\textbf{Nota di sicurezza:}
+$k$ deve essere segreto e unico
 
 \end{frame}
 
@@ -345,8 +357,51 @@ Quindi abbiamo la \textbf{Firma ECDSA:} $(r,s) = (10,1)$
 
 
 
-\section{Esperimento 2: Attacco Weak Nonce Reuse}
 
+\begin{frame}{Come avviene il Mining di un blocco?}
+\textbf{Lato matematico/protocollo:}
+\begin{itemize}
+  \item Si costruisce header del blocco con hash precedente, tx, difficoltà, proposer.
+  \item La \textbf{difficulty} (nel progetto default $d=2$) impone quanti zeri esadecimali iniziali deve avere l'hash del blocco.
+  \item Si cerca $n_{pow}$ tale che:
+  \[
+    \mathrm{H_{SHA}}(\text{header}, n_{pow}) = h, \quad h \text{ inizia con } d \text{ zeri esadecimali.}
+  \]
+  \item Probabilità di successo per tentativo: $\approx 16^{-d}$ (hash uniforme).
+  \item Tentativi attesi: $\approx 16^d$ (con $d=2$, circa $256$ tentativi medi).
+  \item Una volta trovato, il blocco è candidato valido PoW.
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}{Creazione Transazione e Mining}
+\textbf{Pipeline concettuale:}
+\begin{enumerate}
+  \item Costruisco payload canonico (JSON).
+  \item Calcolo digest $z = H(payload)$.
+  \item Calcolo la firma ECDSA $\Rightarrow (r,s)$.
+  \item \textbf{Autenticità Crittografica}: Nodo verifica firma + regole (indirizzo, fondi, nonce).
+  \item \textbf{Validità di Protocollo}: Se valida, tx entra in mempool e viene propagata ai peer.
+  \item Il miner prende l'intero blocco e cerca l'$n_{pow}$ che verifica la condizione. Se ci riesce viene ricompensato.
+\end{enumerate}
+
+\vfill
+\begin{center}
+\begin{minipage}{0.7\textwidth}
+\begin{alertblock}{\textbf{\faLaptop\ Implementazione}}
+Invio Transazioni e Mining
+\end{alertblock}
+\end{minipage}
+\end{center}
+
+\end{frame}
+
+
+
+
+
+\section{Esperimento 2: Attacco Weak Nonce Reuse}
 \begin{frame}{Problema matematico: riuso dello stesso $k$}
 Per due messaggi diversi $z_1, z_2$ firmati con stesso $k$:
 \[
