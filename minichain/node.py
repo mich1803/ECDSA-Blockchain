@@ -257,12 +257,11 @@ def run():
         persist_state()
         broadcast_tx(tx)
         return jsonify({"ok": True, "msg": "created", "tx": tx.to_dict()}), 200
-
+    
     @app.post("/mine")
     def mine():
-        # ✅ Non minare se non ci sono tx
         if len(bc.mempool) == 0:
-            return jsonify({"ok": False, "msg": "mempool empty: nothing to mine"}), 400
+            return jsonify({"ok": False, "msg": "mempool empty"}), 400
 
         blk = bc.make_candidate_block(my_addr)
         ok, mined, tries = bc.mine_block(blk)
@@ -275,7 +274,6 @@ def run():
 
         persist_state()
 
-        # best-effort propagate
         for p in peers:
             try:
                 requests.post(p + "/block/new", json=mined.to_dict(), timeout=2)
