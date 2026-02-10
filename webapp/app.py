@@ -218,10 +218,44 @@ def create_user_app(node_url: str, wallet_name: str, wallets_dir: str, weak_sign
     @app.post("/api/mine")
     def api_mine():
         try:
-            resp = requests.post(app.config["NODE_URL"] + "/mine", json={}, timeout=30)
-            return jsonify({"ok": resp.status_code == 200, "status": resp.status_code, "body": resp.text})
+            # 1) Prendo peers dal nodo
+            idr = requests.get(app.config["NODE_URL"] + "/identity", timeout=5)
+            idr.raise_for_status()
+            peers = idr.json().get("peers", []) or []
+
+            # lista nodi: includo anche il nodo principale della webapp
+            nodes = [app.config["NODE_URL"]] + [p.rstrip("/") for p in peers]
+            # rimuovo duplicati preservando ordine
+            seen = set()
+            nodes = [x for x in nodes if not (x in seen or seen.add(x))]
+
+            # 2) Se mempool vuota (sul nodo “principale”), non faccio partire nulla
+            cr = requests.get(app.config["NODE_URL"] + "/chain", timeout=5)
+            cr.raise_for_status()
+            mempool = cr.json().get("mempool", [])
+            if len(mempool) == 0:
+                return jsonify({"ok": False, "msg": "mempool empty: nothing to mine"}), 200
+
+            # 3) Chiamo /mine su tutti i nodi (gara)
+            results = []
+            for nurl in nodes:
+                try:
+                    resp = requests.post(nurl + "/mine", json={}, timeout=30)
+                    results.append(
+                        {"node": nurl, "status": resp.status_code, "body": resp.text}
+                    )
+                except Exception as exc:
+                    results.append(
+                        {"node": nurl, "status": 0, "body": f"error: {exc}"}
+                    )
+
+            # ok True se almeno uno ha minato (HTTP 200)
+            ok_any = any(r["status"] == 200 for r in results)
+            return jsonify({"ok": ok_any, "results": results}), 200
+
         except Exception as exc:
             return jsonify({"ok": False, "msg": f"mining failed: {exc}"}), 400
+
 
     @app.get("/api/balance")
     def api_balance():

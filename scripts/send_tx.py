@@ -9,7 +9,7 @@ from minichain.paths import resolve_wallet_path, DEFAULT_WALLETS_DIR
 
 
 def main():
-    p = argparse.ArgumentParser(description="Create + sign an Ethereum-like tx (no fees) and send to node")
+    p = argparse.ArgumentParser(description="Create + sign a tx (no fees) and send to node")
     p.add_argument("--node", required=True, help="Node base url, e.g. http://127.0.0.1:5001")
     p.add_argument("--wallet", default="wallet.json", help="filename or path. If filename only, loaded from wallets/")
     p.add_argument("--wallets-dir", default=DEFAULT_WALLETS_DIR)
@@ -19,23 +19,27 @@ def main():
     args = p.parse_args()
 
     wallet_path = resolve_wallet_path(args.wallet, args.wallets_dir)
-
     w = read_json(wallet_path)
     if not w:
         raise SystemExit(f"wallet not found: {wallet_path}")
 
-    sender_priv = w["private_key_hex"]
+    sender_priv = normalize_hex(w.get("private_key_hex", ""))
     sender_pub = normalize_hex(w.get("public_key_hex", ""))
     sender_addr = normalize_hex(w.get("address", ""))
 
+    if len(sender_priv) != 64:
+        raise SystemExit("wallet missing a valid 'private_key_hex' (32 bytes hex)")
+    if not sender_pub:
+        raise SystemExit("wallet missing a valid 'public_key_hex'")
     if not is_address(sender_addr):
         raise SystemExit("wallet missing a valid 'address'. Recreate with scripts/create_wallet.py")
-    if not sender_pub:
-        raise SystemExit("wallet missing a valid 'public_key_hex'. Recreate with scripts/create_wallet.py")
 
     to = normalize_hex(args.to)
     if not is_address(to):
         raise SystemExit("--to must be a 20-byte address hex (40 hex chars)")
+
+    if int(args.amount) <= 0:
+        raise SystemExit("--amount must be > 0")
 
     base = args.node.rstrip("/")
 
@@ -51,7 +55,7 @@ def main():
         value=int(args.amount),
         nonce=int(nonce),
         timestamp_ms=utc_ms(),
-        pubkey=sender_pub,
+        pubkey=sender_pub,  # pubkey visible
         data="",
         signature=None,
     )

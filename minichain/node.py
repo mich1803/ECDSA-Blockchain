@@ -23,14 +23,27 @@ def load_wallet(path: str) -> Dict[str, str]:
     w = read_json(path)
     if not w:
         raise RuntimeError(f"Wallet not found at {path}. Create one with scripts/create_wallet.py")
+
     if "private_key_hex" not in w or "public_key_hex" not in w:
         raise RuntimeError("Invalid wallet format: expected {private_key_hex, public_key_hex, address?}")
-    if "address" not in w:
-        # derive address from pubkey if missing
+
+    # normalize (strip 0x, lowercase)
+    w["private_key_hex"] = normalize_hex(w["private_key_hex"])
+    w["public_key_hex"] = normalize_hex(w["public_key_hex"])
+
+    # minimal sanity checks
+    if len(w["private_key_hex"]) != 64:
+        raise RuntimeError("Invalid private_key_hex length (expected 32 bytes => 64 hex chars)")
+    if len(w["public_key_hex"]) not in (66, 130):
+        raise RuntimeError("Invalid public_key_hex length (expected 33B compressed or 65B uncompressed)")
+
+    if "address" not in w or not is_address(normalize_hex(w.get("address", ""))):
+        # derive address from pubkey if missing/invalid
         pub = pubkey_from_hex(w["public_key_hex"])
         w["address"] = pubkey_to_address(pub.format(compressed=False))
-    return w
 
+    w["address"] = normalize_hex(w["address"])
+    return w
 
 def compute_txid(tx: Transaction) -> str:
     b = canonical_json(tx.to_dict())
@@ -247,6 +260,10 @@ def run():
 
     @app.post("/mine")
     def mine():
+        # ✅ Non minare se non ci sono tx
+        if len(bc.mempool) == 0:
+            return jsonify({"ok": False, "msg": "mempool empty: nothing to mine"}), 400
+
         blk = bc.make_candidate_block(my_addr)
         ok, mined, tries = bc.mine_block(blk)
         if not ok:

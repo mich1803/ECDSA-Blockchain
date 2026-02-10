@@ -2,8 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 
-import time
-
 from .models import Transaction, Block
 from .utils import canonical_json, sha256_hex, utc_ms, Log, normalize_hex, is_address, is_hex
 from .crypto import hash_msg, verify_digest, pubkey_from_hex, pubkey_to_address
@@ -25,7 +23,7 @@ class Blockchain:
         # Ethereum-like state: accounts[address] = {"balance": int, "nonce": int}
         self.accounts: Dict[str, Dict[str, int]] = {}
 
-        # Shared genesis allocation (the key fix)
+        # Shared genesis allocation
         self.genesis_alloc: Dict[str, int] = {}
 
     # ---------------- Genesis allocation ----------------
@@ -71,7 +69,7 @@ class Blockchain:
             return
         genesis = Block(
             index=0,
-            timestamp_ms=0, #cambiato da utc_ms()
+            timestamp_ms=0,  # fixed (deterministic)
             transactions=[],
             previous_hash="0" * 64,
             difficulty=self.cfg.difficulty,
@@ -96,17 +94,26 @@ class Blockchain:
         return hash_msg(payload)
 
     def verify_sender(self, tx: Transaction) -> Tuple[bool, str, str]:
+        """
+        Since tx includes pubkey (classic ECDSA model), we:
+        1) verify ECDSA signature against tx.pubkey
+        2) derive sender address from pubkey
+        """
         if tx.signature is None:
             return False, "", "missing signature"
+
         pub_hex = normalize_hex(tx.pubkey or "")
         if not pub_hex:
             return False, "", "missing sender pubkey"
         if not is_hex(pub_hex) or len(pub_hex) not in (66, 130):
+            # 33B compressed => 66 hex chars; 65B uncompressed => 130 hex chars
             return False, "", "invalid sender pubkey"
+
         try:
-            pub = pubkey_from_hex(pub_hex)
+            pub = pubkey_from_hex(pub_hex)  # compat object (no coincurve)
         except Exception as e:
             return False, "", f"invalid sender pubkey: {e}"
+
         try:
             digest = self.tx_digest(tx)
             if not verify_digest(pub_hex, digest, tx.signature.r, tx.signature.s):
